@@ -1,0 +1,59 @@
+# Python
+.venv/
+**/.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Runtime data and generated artifacts
+/data/
+/backend/data/
+*.joblib
+*.pkl
+*.onnx
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Node / Next.js
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+/frontend/out/
+frontend/.turbo/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test and coverage output
+coverage/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+frontend/coverage/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Project documents kept local (not committed)
+AutoProfileML_Synopsis.pdf
+CLAUDE.md
+PLAN.md
+PRD.md
+
+# Logs
+*.log

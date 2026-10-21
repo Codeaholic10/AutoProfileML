@@ -1,0 +1,12 @@
+# Normalize line endings so the repository stores LF (matches .editorconfig)
+* text=auto eol=lf
+
+# Shell scripts must keep LF so they run in Git Bash / CI
+*.sh text eol=lf
+
+# Windows-only scripts, if added later, keep CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary documents
+*.pdf binary

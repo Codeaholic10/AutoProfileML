@@ -17,7 +17,7 @@ model training, and code-generation wording).
 | Area | Status |
 | --- | --- |
 | Backend API (ingestion, profiling, jobs) | ✅ Implemented |
-| Frontend (Next.js dashboard) | 🚧 Not scaffolded yet |
+| Frontend (Next.js dashboard) | ✅ Scaffolded (App Router, Tailwind v4, shadcn/ui) |
 | Preprocessing, benchmark arena, SHAP | 🚧 Planned |
 | Code/artifact export | 🚧 P1 |
 
@@ -29,7 +29,7 @@ agent rules.
 
 - **Python 3.11+** (the local venv is 3.14.6)
 - **pip** and **venv** (bundled with Python)
-- **Node.js 22+** and **npm 10+** — required once the frontend is scaffolded
+- **Node.js 22+** and **npm 10+** for the frontend
 - **Git Bash** on Windows (all documented commands use POSIX shell syntax)
 
 No database, Redis, Docker, or external services are required.
@@ -111,7 +111,8 @@ Delete, benchmark, and explanation endpoints are planned — see [PLAN.md](PLAN.
 
 ## Frontend
 
-The `frontend/` directory is intentionally empty until Phase 2 of the roadmap. Once scaffolded:
+The dashboard is scaffolded in `frontend/` with Next.js 16 (App Router, Turbopack), Tailwind v4,
+and shadcn/ui. See [frontend/README.md](frontend/README.md) for the toolchain notes.
 
 ```bash
 cd frontend

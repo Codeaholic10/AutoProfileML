@@ -6,6 +6,7 @@ from fastapi import Depends
 
 from app.core.jobs import JobStore, get_job_store
 from app.services.benchmarking import BenchmarkService
+from app.services.explainability import ExplanationService
 from app.storage.factory import get_storage
 
 
@@ -15,3 +16,11 @@ def get_benchmark_service(
     """Wire the benchmark service with shared storage and job registry."""
 
     return BenchmarkService(storage=get_storage(), job_store=job_store)
+
+
+def get_explanation_service(
+    job_store: JobStore = Depends(get_job_store),
+) -> ExplanationService:
+    """Wire the explanation service with shared storage and job registry."""
+
+    return ExplanationService(storage=get_storage(), job_store=job_store)

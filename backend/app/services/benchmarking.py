@@ -746,6 +746,15 @@ class BenchmarkService:
             ]
         )
 
+    def _clear_artifacts(self, benchmark_id: str) -> None:
+        """Remove models, predictions and explanations from a previous attempt."""
+
+        directory = self._benchmark_dir(benchmark_id)
+        for name in ("models", "predictions", "explanations"):
+            artifact = directory / name
+            if self._storage.exists(artifact):
+                self._storage.delete_tree(artifact)
+
     def run_benchmark(self, benchmark_id: str, job_id: str) -> None:
         """Background entrypoint: train, rank, refit and persist a run."""
 
@@ -758,6 +767,7 @@ class BenchmarkService:
             run.best_model_id = None
             run.preprocessing = None
             run.error = None
+            self._clear_artifacts(benchmark_id)
             self._persist_run(run)
             summary = self._datasets.get_dataset(run.dataset_id)
             frame = ingestion.load_dataset(

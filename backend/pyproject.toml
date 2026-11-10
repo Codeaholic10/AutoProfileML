@@ -13,6 +13,7 @@ dependencies = [
     "numpy>=2.0.0",
     "scikit-learn>=1.9.1",
     "joblib>=1.6.0",
+    "shap>=0.54.1",
     "lightgbm>=4.7.0",
     "xgboost>=3.4.1",
 ]
@@ -59,7 +60,7 @@ files = ["app"]
 # treated as untyped. The preprocessing module is the only one that subclasses
 # sklearn base classes, which strict mode otherwise rejects when they are Any.
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "joblib.*"]
+module = ["sklearn.*", "joblib.*", "shap.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

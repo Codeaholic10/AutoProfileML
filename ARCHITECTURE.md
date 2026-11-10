@@ -39,7 +39,7 @@ AutoProfileML is a two-tier application:
 | Dataset metadata | `data/datasets/{dataset_id}/dataset.json` | Yes |
 | Profile report | `data/profiles/{dataset_id}.json` | Yes |
 | Benchmark runs | `data/benchmarks/{benchmark_id}/run.json` | Yes |
-| Explanations | `data/benchmarks/{benchmark_id}/explanations/` (planned) | Yes |
+| Explanations | `data/benchmarks/{benchmark_id}/explanations/` | Yes |
 | Exported artifacts | `data/artifacts/` (P1) | Yes |
 | Job records | Process memory (`JobStore`) | **No** |
 | Upload bytes in flight | Request memory | No |
@@ -48,9 +48,10 @@ AutoProfileML is a two-tier application:
 
 - Implemented: upload, ingestion, profiling, VIF, warnings, dataset listing, re-profiling,
   job polling, local storage with atomic JSON writes, dataset deletion, the preprocessing
-  plan, and the benchmark arena (four models, 5-fold CV, out-of-fold predictions, ranking,
-  persistence, and model artifacts).
-- Planned: SHAP explainability, explanation UI, P1 export.
+  plan, the benchmark arena (four models, 5-fold CV, out-of-fold predictions, ranking,
+  persistence, and model artifacts), and SHAP explanations (global importance, beeswarm
+  points, per-row contributions).
+- Planned: explanation UI (Phase 9), P1 export.
 
 ---
 
@@ -308,6 +309,13 @@ class ExplanationCreateRequest(BaseModel):
     model_id: str
     sample_size: int = Field(default=500, ge=50, le=1000)
     local_rows: int = Field(default=10, ge=1, le=25)
+
+class ExplanationEnqueueResponse(BaseModel):
+    explanation_id: str
+    benchmark_id: str
+    model_id: str
+    task_type: TaskType
+    job: JobRecord
 ```
 
 ### 2.3 TypeScript mirror (shape)
@@ -382,7 +390,7 @@ data/
 │       │   └── {model_id}.joblib    # server-generated fitted pipeline (trusted)
 │       ├── predictions/
 │       │   └── {model_id}.json      # OutOfFoldPredictions (capped)
-│       └── explanations/            # planned (Phase 8)
+│       └── explanations/
 │           └── {model_id}.json      # ExplanationReport JSON
 └── artifacts/                       # P1 export bundles
 ```
@@ -453,8 +461,8 @@ it.
 | GET | `/api/datasets/{dataset_id}/benchmarks` | ✅ | Benchmark history (`BenchmarkSummary[]`); `404` unknown dataset |
 | GET | `/api/benchmarks/{benchmark_id}` | ✅ | Full run + leaderboard; `404` unknown benchmark |
 | GET | `/api/benchmarks/{benchmark_id}/models/{model_id}/predictions` | ✅ | Out-of-fold predictions for confusion matrices, ROC curves, and mistakes; `404` unknown, `409` while queued/running, `400` for regression |
-| POST | `/api/benchmarks/{benchmark_id}/explanations` | 🔜 | Queue SHAP job, `202` |
-| GET | `/api/benchmarks/{benchmark_id}/explanations/{model_id}` | 🔜 | Stored explanation or `409` |
+| POST | `/api/benchmarks/{benchmark_id}/explanations` | ✅ | Queue SHAP job, `202`; `404` unknown benchmark/model, `409` benchmark not finished, `400` unsupported family |
+| GET | `/api/benchmarks/{benchmark_id}/explanations/{model_id}` | ✅ | Stored explanation; `404` unknown model or missing report, `409` benchmark not finished |
 | GET | `/api/benchmarks/{benchmark_id}/export` | P1 | Download ZIP bundle |
 
 ✅ = implemented · 🔜 = MVP planned · P1 = post-MVP
@@ -647,19 +655,28 @@ ColumnTransformer
 
 - Load the persisted pipeline for the requested `model_id` from the benchmark directory;
   reject unknown IDs with `404` and path traversal attempts before touching the filesystem.
-- Method: `TreeExplainer` for RF/LightGBM/XGBoost, `LinearExplainer` for linear models.
+- Explainer selection comes from the registry family: `TreeExplainer` (interventional, bounded
+  background set) for RF/LightGBM/XGBoost, `LinearExplainer` for linear models. All four
+  families are covered, so `kernel_shap` is reserved and unsupported families are rejected with
+  `400` rather than falling back.
 - Explanation is a separate job so a slow or failed SHAP run never invalidates a completed
   leaderboard.
-- Background/evaluation sample ≤ 1,000 rows, fixed seed 42; global importance is mean
-  |SHAP| per feature; per-row contributions are capped to the top 15 by absolute value.
+- Samples are drawn with the run's fixed seed and capped at 1,000 rows; the background set is
+  capped at 100 rows (`SHAP_SAMPLE_CAP`, `BACKGROUND_CAP`).
+- Global importance is mean |SHAP| per encoded feature, averaged over sampled rows and, for
+  multiclass models, over classes; the displayed list is capped at 30 features
+  (`GLOBAL_IMPORTANCE_CAP`).
+- Per-row explanations describe the **predicted class** (classification) or the regression
+  output: the top 15 contributions by absolute value plus the base value and prediction.
 - `summary_points` carries the top 10 features × sampled rows for the beeswarm, rounded and
   bounded so the JSON stays small.
-- Feature names come from `preprocessor.get_feature_names_out()`; they may be encoded
-  (`onehot__city_mumbai`, `target__postal_code`). Preserve the original column name alongside
-  the encoded name where possible so the UI can group one-hot variants under their source
-  column.
+- Feature names are reconstructed per fitted transformer (`numeric__age`,
+  `low_cardinality__city_mumbai`, `high_cardinality__postal_code`) because the adaptive
+  imputer does not implement `get_feature_names_out`; raw feature values are mapped back to
+  their source column where the encoded name allows it.
 - Output is JSON (`ExplanationReport`), never raw NumPy arrays.
-- Kernel SHAP is a fallback only for unsupported model families, with a hard sample cap.
+- Starting a benchmark re-run clears `models/`, `predictions/`, and `explanations/` so stale
+  artifacts from a previous attempt can never be served.
 
 ### 5.5 Code export (P1)
 

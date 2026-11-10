@@ -27,6 +27,7 @@ reach the browser — never put secrets here.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `NEXT_PUBLIC_API_BASE_URL` | `http://localhost:8000` | FastAPI base URL |
+| `NEXT_PUBLIC_MAX_UPLOAD_MB` | `200` | Client-side upload ceiling; keep it equal to the backend's `AUTOPROFILEML_MAX_UPLOAD_MB` |
 
 ## Toolchain note: TypeScript 7 and ESLint
 

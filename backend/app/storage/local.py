@@ -1,5 +1,6 @@
 """Local disk implementation of the storage contract."""
 
+import shutil
 from pathlib import Path
 
 from app.core.config import Settings
@@ -42,3 +43,11 @@ class LocalStorage(Storage):
     def delete(self, path: Path) -> None:
         if path.exists():
             path.unlink()
+
+    def delete_tree(self, path: Path) -> None:
+        root = self._settings.storage_root.resolve()
+        target = path.resolve()
+        if target == root or not target.is_relative_to(root):
+            raise ValueError("Refusing to delete a path outside the storage root.")
+        if target.exists():
+            shutil.rmtree(target)

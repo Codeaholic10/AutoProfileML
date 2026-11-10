@@ -62,16 +62,12 @@ function detailFromBody(body: unknown): string | null {
 }
 
 /**
- * Fetch `path`, validate the JSON against `schema`, and return it.
+ * Send a request and normalize transport/HTTP failures into `ApiError`.
  *
- * `cache: "no-store"` is forced because dataset state changes on every upload
- * and profile run; the Next.js Data Cache must never serve a stale response.
+ * Callers that expect a body parse it themselves; `apiSend` uses this for
+ * `204 No Content` responses.
  */
-export async function apiFetch<T>(
-  path: string,
-  schema: ZodType<T>,
-  init?: RequestInit,
-): Promise<T> {
+async function request(path: string, init?: RequestInit): Promise<Response> {
   const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
   const headers = new Headers(init?.headers);
   if (!headers.has("Accept")) {
@@ -93,8 +89,25 @@ export async function apiFetch<T>(
       body = null;
     }
     const detail = detailFromBody(body) ?? (response.statusText || "Request failed.");
-    throw new ApiError(response.status, detail, response.headers.get(REQUEST_ID_HEADER) ?? undefined);
+    const requestId = response.headers.get(REQUEST_ID_HEADER) ?? undefined;
+    throw new ApiError(response.status, detail, requestId);
   }
+
+  return response;
+}
+
+/**
+ * Fetch `path`, validate the JSON against `schema`, and return it.
+ *
+ * `cache: "no-store"` is forced because dataset state changes on every upload
+ * and profile run; the Next.js Data Cache must never serve a stale response.
+ */
+export async function apiFetch<T>(
+  path: string,
+  schema: ZodType<T>,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await request(path, init);
 
   let body: unknown;
   try {
@@ -108,4 +121,9 @@ export async function apiFetch<T>(
     throw new ApiError(response.status, "The server returned an unexpected response shape.");
   }
   return parsed.data;
+}
+
+/** Send a request whose response has no body (for example `DELETE` → `204`). */
+export async function apiSend(path: string, init?: RequestInit): Promise<void> {
+  await request(path, init);
 }

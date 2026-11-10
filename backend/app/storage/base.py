@@ -35,3 +35,7 @@ class Storage(ABC):
     @abstractmethod
     def delete(self, path: Path) -> None:
         """Remove a stored object if it exists."""
+
+    @abstractmethod
+    def delete_tree(self, path: Path) -> None:
+        """Remove a stored directory and everything under it."""

@@ -17,7 +17,7 @@ model training, and code-generation wording).
 | Area | Status |
 | --- | --- |
 | Backend API (ingestion, profiling, jobs) | ✅ Implemented |
-| Frontend (Next.js dashboard) | ✅ Scaffolded (App Router, Tailwind v4, shadcn/ui) |
+| Frontend (Next.js dashboard) | ✅ Dataset library, upload, and deletion (Phases 2–4) |
 | Preprocessing, benchmark arena, SHAP | 🚧 Planned |
 | Code/artifact export | 🚧 P1 |
 
@@ -102,17 +102,20 @@ Runtime data under `data/`, virtual environments, caches, and `.env` files are g
 | `POST` | `/api/datasets` | Upload CSV/Parquet and queue profiling |
 | `GET` | `/api/datasets` | List datasets with profile/job state |
 | `GET` | `/api/datasets/{id}` | Dataset metadata |
+| `DELETE` | `/api/datasets/{id}` | Delete a dataset, its metadata, and its profile (`204`) |
 | `GET` | `/api/datasets/{id}/profile` | Stored profile (`409` while pending) |
 | `POST` | `/api/datasets/{id}/profile` | Re-run profiling |
 | `GET` | `/api/datasets/{id}/jobs` | Job history for a dataset |
 | `GET` | `/api/jobs/{id}` | Poll a job |
 
-Delete, benchmark, and explanation endpoints are planned — see [PLAN.md](PLAN.md).
+Benchmark and explanation endpoints are planned — see [PLAN.md](PLAN.md).
 
 ## Frontend
 
-The dashboard is scaffolded in `frontend/` with Next.js 16 (App Router, Turbopack), Tailwind v4,
-and shadcn/ui. See [frontend/README.md](frontend/README.md) for the toolchain notes.
+The dashboard in `frontend/` is built with Next.js 16 (App Router, Turbopack), Tailwind v4, and
+shadcn/ui. It lists datasets, uploads CSV/Parquet files with client-side validation, and
+deletes datasets behind a confirmation dialog. The profile dashboard arrives in Phase 5. See
+[frontend/README.md](frontend/README.md) for toolchain notes.
 
 ```bash
 cd frontend

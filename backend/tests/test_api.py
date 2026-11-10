@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.api.routes import datasets as dataset_routes
 from app.core.jobs import get_job_store
 from app.main import create_app
+from app.services.datasets import DatasetService
 from app.storage.factory import get_storage
 from tests.conftest import build_frame
 
@@ -106,6 +107,25 @@ def test_unknown_dataset_returns_404(client: TestClient) -> None:
     assert client.get("/api/datasets/missing/profile").status_code == 404
     assert client.get("/api/jobs/missing").status_code == 404
     assert client.post("/api/datasets/missing/profile").status_code == 404
+    assert client.delete("/api/datasets/missing").status_code == 404
+
+
+def test_delete_dataset_removes_profile_and_listing(
+    client: TestClient, service: DatasetService
+) -> None:
+    upload = _upload(client, build_frame(rows=120))
+    dataset_id = upload.json()["dataset"]["dataset_id"]
+    assert service.has_profile(dataset_id) is True
+
+    response = client.delete(f"/api/datasets/{dataset_id}")
+    assert response.status_code == 204
+    assert response.content == b""
+
+    assert client.get(f"/api/datasets/{dataset_id}").status_code == 404
+    assert client.get(f"/api/datasets/{dataset_id}/profile").status_code == 404
+    assert client.get("/api/datasets").json() == []
+    assert service.has_profile(dataset_id) is False
+    assert client.delete(f"/api/datasets/{dataset_id}").status_code == 404
 
 
 def test_dataset_listing_reports_profile_availability(client: TestClient) -> None:

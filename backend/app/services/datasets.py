@@ -135,6 +135,22 @@ class DatasetService:
     def has_profile(self, dataset_id: str) -> bool:
         return self._storage.exists(self._profile_path(dataset_id))
 
+    def delete_dataset(self, dataset_id: str) -> None:
+        """Delete a dataset file, its metadata and its stored profile.
+
+        The profile is removed first so a failure while removing the directory
+        cannot leave a profile referring to a dataset that no longer exists.
+        Benchmark artifacts are added to this path once Phase 7 writes them.
+        """
+
+        self.get_dataset(dataset_id)
+
+        profile_path = self._profile_path(dataset_id)
+        if self._storage.exists(profile_path):
+            self._storage.delete(profile_path)
+
+        self._storage.delete_tree(self._settings.datasets_dir / dataset_id)
+
     def list_datasets(self) -> list[DatasetListItem]:
         """List every known dataset with its latest job state."""
 

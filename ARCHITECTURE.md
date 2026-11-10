@@ -421,7 +421,7 @@ allows it.
 | POST | `/api/datasets` | ✅ | Upload file (multipart `file`), queue profiling, `202` |
 | GET | `/api/datasets` | ✅ | List datasets with `has_profile` + latest job |
 | GET | `/api/datasets/{dataset_id}` | ✅ | Dataset metadata |
-| DELETE | `/api/datasets/{dataset_id}` | 🔜 | Delete dataset + profiles + runs + artifacts, `204` |
+| DELETE | `/api/datasets/{dataset_id}` | ✅ | Delete dataset, metadata, and stored profile, `204` |
 | GET | `/api/datasets/{dataset_id}/profile` | ✅ | Profile report; `409` while not ready |
 | POST | `/api/datasets/{dataset_id}/profile` | ✅ | Re-profile, `202` + job |
 | GET | `/api/datasets/{dataset_id}/jobs` | ✅ | Job history for a dataset |
@@ -838,6 +838,8 @@ and strict mypy clean; upload → profile → failed re-profile → restart exer
 2. **Uploads are fully buffered in memory** (up to 200 MB) — a streaming implementation is
    P1.
 3. **Profiling materializes the full frame**; very wide/large datasets may hit memory limits.
-4. **No delete endpoint yet** — `Storage.delete` exists but is not exposed.
+4. **Dataset deletion is scoped to what exists today** — it removes the dataset directory and
+   stored profile. Benchmark runs and explanations are added to `delete_dataset` when those
+   phases start writing them.
 5. **Benchmark results are not yet modeled or persisted.**
 6. **No CI** — `backend/scripts/check.sh` is the local quality gate until P1 adds CI.

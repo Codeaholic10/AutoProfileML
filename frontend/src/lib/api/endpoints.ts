@@ -8,7 +8,7 @@ import type {
   ProfileReport,
 } from "@/types/api";
 
-import { apiFetch } from "./client";
+import { apiFetch, apiSend } from "./client";
 import {
   datasetListItemSchema,
   datasetSummarySchema,
@@ -59,4 +59,6 @@ export function listDatasetJobs(datasetId: string): Promise<JobRecord[]> {
   return apiFetch(`${datasetPath(datasetId)}/jobs`, jobRecordSchema.array());
 }
 
-// TODO(Phase 4): add deleteDataset once DELETE /api/datasets/{dataset_id} exists.
+export function deleteDataset(datasetId: string): Promise<void> {
+  return apiSend(datasetPath(datasetId), { method: "DELETE" });
+}

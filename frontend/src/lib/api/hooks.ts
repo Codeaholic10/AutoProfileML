@@ -8,6 +8,7 @@ import type { JobStatus } from "@/types/api";
 
 import { ApiError } from "./client";
 import {
+  deleteDataset,
   getDataset,
   getJob,
   getProfile,
@@ -89,6 +90,19 @@ export function useReprofileDataset() {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.datasets.jobs(datasetId),
       });
+    },
+  });
+}
+
+export function useDeleteDataset() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (datasetId: string) => deleteDataset(datasetId),
+    onSuccess: (_result, datasetId) => {
+      queryClient.removeQueries({ queryKey: queryKeys.datasets.detail(datasetId) });
+      queryClient.removeQueries({ queryKey: queryKeys.datasets.profile(datasetId) });
+      queryClient.removeQueries({ queryKey: queryKeys.datasets.jobs(datasetId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.datasets.list() });
     },
   });
 }

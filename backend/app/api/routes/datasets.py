@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Response,
+    UploadFile,
+    status,
+)
 
 from app.core.jobs import JobStore, get_job_store
 from app.models.schemas import (
@@ -99,6 +108,26 @@ async def get_dataset(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Dataset not found."
         ) from exc
+
+
+@router.delete(
+    "/datasets/{dataset_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a dataset",
+)
+async def delete_dataset(
+    dataset_id: str,
+    service: DatasetService = Depends(get_dataset_service),
+) -> Response:
+    """Delete a dataset, its metadata and any stored profile."""
+
+    try:
+        service.delete_dataset(dataset_id)
+    except DatasetNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Dataset not found."
+        ) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

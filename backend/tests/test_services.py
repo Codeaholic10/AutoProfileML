@@ -165,3 +165,44 @@ def test_job_store_progress_is_clamped() -> None:
     assert store.update(job.job_id, progress=5.0).progress == 1.0
     assert store.update(job.job_id, progress=-3.0).progress == 0.0
     assert store.get("missing") is None
+
+
+def test_delete_dataset_removes_stored_files(
+    service: DatasetService, settings, csv_bytes: bytes
+) -> None:
+    dataset_id = "delete-dataset"
+    service.save_upload(dataset_id, "data.csv", csv_bytes)
+    job = service._jobs.create(kind="profiling", dataset_id=dataset_id)
+    service.run_profiling(job.job_id, dataset_id)
+
+    dataset_dir = settings.datasets_dir / dataset_id
+    profile_path = settings.profiles_dir / f"{dataset_id}.json"
+    assert dataset_dir.exists()
+    assert profile_path.exists()
+
+    service.delete_dataset(dataset_id)
+
+    assert not dataset_dir.exists()
+    assert not profile_path.exists()
+    assert service.has_profile(dataset_id) is False
+    with pytest.raises(DatasetNotFoundError):
+        service.get_dataset(dataset_id)
+
+
+def test_delete_unknown_dataset_raises(service: DatasetService) -> None:
+    with pytest.raises(DatasetNotFoundError):
+        service.delete_dataset("missing-dataset")
+
+
+def test_delete_tree_refuses_paths_outside_storage_root(storage, settings) -> None:
+    outside = settings.storage_root.parent / "outside"
+    outside.mkdir()
+
+    with pytest.raises(ValueError):
+        storage.delete_tree(outside)
+    assert outside.exists()
+
+    with pytest.raises(ValueError):
+        storage.delete_tree(settings.storage_root)
+
+    storage.delete_tree(settings.datasets_dir / "never-created")

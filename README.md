@@ -17,7 +17,7 @@ model training, and code-generation wording).
 | Area | Status |
 | --- | --- |
 | Backend API (ingestion, profiling, jobs) | ✅ Implemented |
-| Frontend (Next.js dashboard) | ✅ Dataset library, upload, and deletion (Phases 2–4) |
+| Frontend (Next.js dashboard) | ✅ Dataset library, upload/delete, profile dashboard (Phases 2–5) |
 | Preprocessing, benchmark arena, SHAP | 🚧 Planned |
 | Code/artifact export | 🚧 P1 |
 
@@ -113,9 +113,11 @@ Benchmark and explanation endpoints are planned — see [PLAN.md](PLAN.md).
 ## Frontend
 
 The dashboard in `frontend/` is built with Next.js 16 (App Router, Turbopack), Tailwind v4, and
-shadcn/ui. It lists datasets, uploads CSV/Parquet files with client-side validation, and
-deletes datasets behind a confirmation dialog. The profile dashboard arrives in Phase 5. See
-[frontend/README.md](frontend/README.md) for toolchain notes.
+shadcn/ui. It lists datasets, uploads CSV/Parquet files with client-side validation, deletes
+datasets behind a confirmation dialog, and renders the full profile: KPI overview, warnings by
+severity, a sortable/filterable column table with detail dialogs, top-value and quartile
+charts, VIF findings, and a correlation heatmap. See [frontend/README.md](frontend/README.md)
+for toolchain notes.
 
 ```bash
 cd frontend

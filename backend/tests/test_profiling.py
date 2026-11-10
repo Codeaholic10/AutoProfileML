@@ -63,6 +63,38 @@ def test_collinearity_detects_duplicated_feature(sample_frame: pl.DataFrame) -> 
     assert findings["income_copy"].severity in ("moderate", "severe")
 
 
+def test_profile_includes_rounded_correlation_matrix(sample_frame: pl.DataFrame) -> None:
+    report = profile_frame(sample_frame, "dataset-1")
+    matrix = report.correlation
+
+    assert matrix is not None
+    assert matrix.features == ["age", "income", "income_copy", "score"]
+    assert all(len(row) == len(matrix.features) for row in matrix.values)
+    assert all(matrix.values[index][index] == 1.0 for index in range(len(matrix.features)))
+
+    position = {name: index for index, name in enumerate(matrix.features)}
+    correlation = matrix.values[position["income"]][position["income_copy"]]
+    assert correlation > 0.99
+    assert all(round(value, 4) == value for row in matrix.values for value in row)
+
+
+def test_correlation_is_null_with_fewer_than_two_numeric_columns() -> None:
+    frame = pl.DataFrame({"a": [1.0, 2.0, 3.0, 4.0], "label": ["x", "y", "z", "w"]})
+
+    assert profile_frame(frame, "single-numeric").correlation is None
+
+
+def test_correlation_is_null_above_the_feature_cap() -> None:
+    frame = pl.DataFrame(
+        {f"c{index}": [float(index + row) for row in range(50)] for index in range(41)}
+    )
+
+    report = profile_frame(frame, "wide")
+
+    assert report.correlation is None
+    assert report.collinearity == []
+
+
 def test_vif_skips_constant_columns(sample_frame: pl.DataFrame) -> None:
     frame = sample_frame.with_columns(pl.lit(3.0).alias("flat"))
     findings = compute_vif(frame, ["age", "flat"])

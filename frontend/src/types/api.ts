@@ -63,6 +63,11 @@ export interface ProfilingWarning {
   message: string;
 }
 
+export interface CorrelationMatrix {
+  features: string[];
+  values: number[][];
+}
+
 export interface ProfileReport {
   dataset_id: string;
   row_count: number;
@@ -76,6 +81,7 @@ export interface ProfileReport {
   categorical_columns: number;
   columns: ColumnProfile[];
   collinearity: CollinearityFinding[];
+  correlation: CorrelationMatrix | null;
   warnings: ProfilingWarning[];
 }
 

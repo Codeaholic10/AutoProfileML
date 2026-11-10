@@ -17,6 +17,7 @@ import polars as pl
 from app.models.schemas import (
     CollinearityFinding,
     ColumnProfile,
+    CorrelationMatrix,
     ProfileReport,
     ProfilingWarning,
     TopValue,
@@ -188,18 +189,26 @@ def _invert(matrix: np.ndarray) -> np.ndarray | None:
         return None
 
 
-def compute_vif(frame: pl.DataFrame, names: list[str]) -> list[CollinearityFinding]:
+def compute_vif(
+    frame: pl.DataFrame,
+    names: list[str],
+    prepared: tuple[np.ndarray, list[str]] | None = None,
+) -> list[CollinearityFinding]:
     """Compute variance inflation factors for the numeric feature matrix.
 
     A constant or perfectly collinear block makes the correlation matrix
     singular; in that case the pseudo-inverse is used so severity is still
     reported instead of the check silently disappearing.
+
+    ``prepared`` lets the caller share one complete-case matrix between VIF and
+    the correlation report.
     """
 
     if len(names) < VIF_MIN_COLUMNS or len(names) > VIF_MAX_FEATURES:
         return []
 
-    prepared = _numeric_matrix(frame, names)
+    if prepared is None:
+        prepared = _numeric_matrix(frame, names)
     if prepared is None:
         return []
     matrix, kept = prepared
@@ -239,6 +248,24 @@ def compute_vif(frame: pl.DataFrame, names: list[str]) -> list[CollinearityFindi
         )
 
     return sorted(findings, key=lambda finding: finding.vif, reverse=True)
+
+
+def _correlation_report(
+    prepared: tuple[np.ndarray, list[str]] | None,
+) -> CorrelationMatrix | None:
+    """Build a rounded Pearson matrix from an already prepared feature matrix."""
+
+    if prepared is None:
+        return None
+    matrix, names = prepared
+    if len(names) < VIF_MIN_COLUMNS:
+        return None
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        corr = np.corrcoef(matrix, rowvar=False)
+    corr = np.nan_to_num(corr, nan=0.0)
+    values = [[round(float(value), 4) for value in row] for row in corr]
+    return CorrelationMatrix(features=list(names), values=values)
 
 
 def _build_warnings(
@@ -359,7 +386,13 @@ def profile_frame(frame: pl.DataFrame, dataset_id: str) -> ProfileReport:
 
     columns = [_column_profile(frame[column], row_count) for column in frame.columns]
     numeric_names = [column.name for column in columns if column.semantic_type == "numeric"]
-    collinearity = compute_vif(frame, numeric_names)
+    prepared = (
+        _numeric_matrix(frame, numeric_names)
+        if VIF_MIN_COLUMNS <= len(numeric_names) <= VIF_MAX_FEATURES
+        else None
+    )
+    collinearity = compute_vif(frame, numeric_names, prepared=prepared)
+    correlation = _correlation_report(prepared)
 
     duplicate_rows = int(row_count - frame.unique().height)
     duplicate_ratio = duplicate_rows / row_count
@@ -379,5 +412,6 @@ def profile_frame(frame: pl.DataFrame, dataset_id: str) -> ProfileReport:
         ),
         columns=columns,
         collinearity=collinearity,
+        correlation=correlation,
         warnings=warnings,
     )

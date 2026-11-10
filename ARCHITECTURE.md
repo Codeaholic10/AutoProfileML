@@ -111,6 +111,10 @@ class ProfilingWarning(BaseModel):
     column: str | None
     message: str
 
+class CorrelationMatrix(BaseModel):
+    features: list[str]
+    values: list[list[float]]          # Pearson r, rounded to 4 decimals
+
 class ProfileReport(BaseModel):
     dataset_id: str
     row_count: int
@@ -124,6 +128,7 @@ class ProfileReport(BaseModel):
     categorical_columns: int
     columns: list[ColumnProfile]
     collinearity: list[CollinearityFinding]
+    correlation: CorrelationMatrix | None   # None when < 2 numeric features
     warnings: list[ProfilingWarning]
 
 class JobRecord(BaseModel):
@@ -310,6 +315,11 @@ export interface DatasetSummary {
   column_count: number | null;
 }
 
+export interface CorrelationMatrix {
+  features: string[];
+  values: number[][];
+}
+
 export interface ProfileReport {
   dataset_id: string;
   row_count: number;
@@ -323,6 +333,7 @@ export interface ProfileReport {
   categorical_columns: number;
   columns: ColumnProfile[];
   collinearity: CollinearityFinding[];
+  correlation: CorrelationMatrix | null;
   warnings: ProfilingWarning[];
 }
 

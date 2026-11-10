@@ -12,6 +12,7 @@ import { z } from "zod";
 import type {
   CollinearityFinding,
   ColumnProfile,
+  CorrelationMatrix,
   DatasetListItem,
   DatasetSummary,
   DatasetUploadResponse,
@@ -84,6 +85,11 @@ export const profilingWarningSchema: z.ZodType<ProfilingWarning> = z.object({
   message: z.string(),
 });
 
+export const correlationMatrixSchema: z.ZodType<CorrelationMatrix> = z.object({
+  features: z.array(z.string()),
+  values: z.array(z.array(z.number())),
+});
+
 export const profileReportSchema: z.ZodType<ProfileReport> = z.object({
   dataset_id: z.string(),
   row_count: z.number(),
@@ -97,6 +103,7 @@ export const profileReportSchema: z.ZodType<ProfileReport> = z.object({
   categorical_columns: z.number(),
   columns: z.array(columnProfileSchema),
   collinearity: z.array(collinearityFindingSchema),
+  correlation: correlationMatrixSchema.nullable(),
   warnings: z.array(profilingWarningSchema),
 });
 

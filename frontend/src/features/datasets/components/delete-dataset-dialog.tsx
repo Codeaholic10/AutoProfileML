@@ -23,11 +23,14 @@ import { useDeleteDataset } from "@/lib/api/hooks";
 interface DeleteDatasetDialogProps {
   datasetId: string;
   filename: string;
+  /** Navigate here after deletion instead of refreshing the current route. */
+  redirectTo?: string;
 }
 
 export function DeleteDatasetDialog({
   datasetId,
   filename,
+  redirectTo,
 }: DeleteDatasetDialogProps) {
   const router = useRouter();
   const mutation = useDeleteDataset();
@@ -50,7 +53,11 @@ export function DeleteDatasetDialog({
       onSuccess: () => {
         setOpen(false);
         toast.success(`Deleted ${filename}`);
-        router.refresh();
+        if (redirectTo) {
+          router.push(redirectTo);
+        } else {
+          router.refresh();
+        }
       },
       onError: (caught) => {
         setError(

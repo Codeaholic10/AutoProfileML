@@ -1,18 +1,29 @@
-import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ColumnTable } from "@/features/profiling/components/column-table";
+import { CollinearityPanel } from "@/features/profiling/components/collinearity-panel";
+import { CorrelationHeatmap } from "@/features/profiling/components/correlation-heatmap";
+import { DatasetHeader } from "@/features/profiling/components/dataset-header";
+import { JobProgress } from "@/features/profiling/components/job-progress";
+import { ProfileOverview } from "@/features/profiling/components/profile-overview";
+import { ReprofileButton } from "@/features/profiling/components/reprofile-button";
+import { WarningsPanel } from "@/features/profiling/components/warnings-panel";
 import { ApiError } from "@/lib/api/client";
-import { getDataset } from "@/lib/api/endpoints";
-import { formatBytes, formatCount, formatDateTime } from "@/lib/format";
-import type { DatasetSummary } from "@/types/api";
+import { getDataset, getProfile, listDatasetJobs } from "@/lib/api/endpoints";
+import type { DatasetSummary, JobRecord, ProfileReport } from "@/types/api";
 
-/**
- * Minimal dataset landing page for Phase 4 navigation.
- *
- * Phase 5 replaces this with the profile dashboard (header actions, job
- * progress, statistics, warnings, charts).
- */
+async function loadProfile(datasetId: string): Promise<ProfileReport | null> {
+  try {
+    return await getProfile(datasetId);
+  } catch (caught) {
+    // 409 means profiling is still running; the job panel explains it.
+    if (caught instanceof ApiError && caught.status === 409) {
+      return null;
+    }
+    throw caught;
+  }
+}
+
 export default async function DatasetDetailPage({
   params,
 }: PageProps<"/datasets/[datasetId]">) {
@@ -28,50 +39,60 @@ export default async function DatasetDetailPage({
     throw caught;
   }
 
-  const shape =
-    dataset.row_count !== null && dataset.column_count !== null
-      ? `${formatCount(dataset.row_count)} rows × ${formatCount(dataset.column_count)} columns`
-      : "Not profiled yet";
+  const [profile, jobs] = await Promise.all([
+    loadProfile(datasetId),
+    listDatasetJobs(datasetId),
+  ]);
+
+  const latestJob: JobRecord | undefined = jobs.at(-1);
+  const activeJob =
+    latestJob &&
+    (latestJob.status === "queued" || latestJob.status === "running")
+      ? latestJob
+      : null;
+  const failedJob = latestJob?.status === "failed" ? latestJob : null;
 
   return (
-    <section className="space-y-6">
-      <Link
-        href="/datasets"
-        className="text-sm text-muted-foreground hover:text-foreground"
-      >
-        ← All datasets
-      </Link>
+    <div className="space-y-8">
+      <DatasetHeader dataset={dataset} />
 
-      <header className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {dataset.filename}
-          </h1>
-          <Badge variant="outline">{dataset.format.toUpperCase()}</Badge>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Uploaded {formatDateTime(dataset.uploaded_at)}
-        </p>
-      </header>
+      {activeJob ? <JobProgress jobId={activeJob.job_id} /> : null}
 
-      <dl className="grid grid-cols-2 gap-4 rounded-xl border p-4 text-sm sm:grid-cols-4">
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Size</dt>
-          <dd className="font-medium">{formatBytes(dataset.size_bytes)}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Shape</dt>
-          <dd className="font-medium">{shape}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Format</dt>
-          <dd className="font-medium">{dataset.format.toUpperCase()}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Dataset ID</dt>
-          <dd className="truncate font-mono text-xs">{dataset.dataset_id}</dd>
-        </div>
-      </dl>
-    </section>
+      {failedJob && !activeJob ? (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-4">
+          <div className="space-y-1 text-sm">
+            <p className="font-medium text-destructive">
+              The last profiling run failed.
+            </p>
+            <p className="text-muted-foreground">
+              {failedJob.error ?? "No error detail was recorded."}
+            </p>
+          </div>
+          <ReprofileButton datasetId={datasetId} label="Try again" size="sm" />
+        </section>
+      ) : null}
+
+      {profile ? (
+        <>
+          <ProfileOverview profile={profile} />
+          <WarningsPanel warnings={profile.warnings} />
+          <ColumnTable columns={profile.columns} />
+          <CollinearityPanel findings={profile.collinearity} />
+          <CorrelationHeatmap correlation={profile.correlation} />
+        </>
+      ) : !activeJob && !failedJob ? (
+        <section className="space-y-3 rounded-xl border border-dashed px-6 py-12 text-center">
+          <h2 className="font-medium">Profile not available</h2>
+          <p className="text-sm text-muted-foreground">
+            Run profiling to build the profile for this dataset.
+          </p>
+          <ReprofileButton
+            datasetId={datasetId}
+            label="Run profiling"
+            variant="default"
+          />
+        </section>
+      ) : null}
+    </div>
   );
 }

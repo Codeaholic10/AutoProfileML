@@ -78,6 +78,7 @@ export const profileReport: ProfileReport = {
   collinearity: [
     { feature: "age", vif: 1.0, severity: "ok", correlated_with: null },
   ],
+  correlation: null,
   warnings: [
     {
       code: "high_cardinality",

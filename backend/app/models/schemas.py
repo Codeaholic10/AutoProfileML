@@ -82,6 +82,13 @@ class ProfilingWarning(BaseModel):
     message: str
 
 
+class CorrelationMatrix(BaseModel):
+    """Pearson correlation matrix for the numeric features."""
+
+    features: list[str]
+    values: list[list[float]]
+
+
 class ProfileReport(BaseModel):
     """Full profiling payload returned to the frontend."""
 
@@ -97,6 +104,7 @@ class ProfileReport(BaseModel):
     categorical_columns: int
     columns: list[ColumnProfile]
     collinearity: list[CollinearityFinding] = Field(default_factory=list)
+    correlation: CorrelationMatrix | None = None
     warnings: list[ProfilingWarning] = Field(default_factory=list)
 
 

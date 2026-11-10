@@ -174,6 +174,16 @@ class BenchmarkCreateRequest(BaseModel):
     folds: int = Field(default=5, ge=3, le=10)
     random_state: int = 42
 
+class FeaturePartition(BaseModel):
+    target: str
+    numeric: list[str]
+    low_cardinality_categorical: list[str]
+    high_cardinality_categorical: list[str]
+    dropped_constant: list[str]
+    dropped_all_null: list[str]
+    dropped_unsupported: list[str]
+    excluded: list[str]
+
 class PreprocessingStep(BaseModel):
     kind: Literal[
         "numeric_impute", "categorical_impute", "iqr_clip",
@@ -570,7 +580,7 @@ ColumnTransformer
 │   └── OneHotEncoder(handle_unknown="ignore")
 └── high-cardinality categorical
     ├── SimpleImputer(strategy="most_frequent")
-    └── TargetEncoder(smooth="auto", random_state=42)   # fit inside the fold
+    └── TargetEncoder(smooth="auto", cv=KFold/StratifiedKFold(5, shuffle, seed=42))
 ```
 
 - **Adaptive numeric imputation** (synopsis §5 Phase 2): KNN imputation exploits
@@ -581,6 +591,8 @@ ColumnTransformer
 
 - High cardinality threshold: `unique_count / row_count ≥ 0.5` or `unique_count > 50`.
 - Constant and all-null columns are dropped and reported in `PreprocessingPlan.notes`.
+- Temporal and unknown semantic types are not modelled in the MVP; they are dropped and
+  reported alongside constant and all-null columns.
 - IQR clipping bounds are computed on training folds only.
 - `remainder="drop"`; the plan is derived from the fitted `ColumnTransformer` so the UI shows
   exactly what ran.

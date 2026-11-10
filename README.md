@@ -18,7 +18,8 @@ model training, and code-generation wording).
 | --- | --- |
 | Backend API (ingestion, profiling, jobs) | ✅ Implemented |
 | Frontend (Next.js dashboard) | ✅ Dataset library, upload/delete, profile dashboard (Phases 2–5) |
-| Preprocessing, benchmark arena, SHAP | 🚧 Planned |
+| Preprocessing engine (leakage-free) | ✅ Implemented (Phase 6) |
+| Benchmark arena, SHAP, dashboard for both | 🚧 Planned |
 | Code/artifact export | 🚧 P1 |
 
 See [PRD.md](PRD.md) for scope, [ARCHITECTURE.md](ARCHITECTURE.md) for the technical design,

@@ -11,6 +11,8 @@ dependencies = [
     "pydantic>=2.9.0",
     "pydantic-settings>=2.6.0",
     "numpy>=2.0.0",
+    "scikit-learn>=1.9.1",
+    "joblib>=1.6.0",
 ]
 
 [project.optional-dependencies]
@@ -50,3 +52,14 @@ python_version = "3.11"
 strict = true
 warn_unused_ignores = true
 files = ["app"]
+
+# scikit-learn ships no py.typed marker in this environment, so its symbols are
+# treated as untyped. The preprocessing module is the only one that subclasses
+# sklearn base classes, which strict mode otherwise rejects when they are Any.
+[[tool.mypy.overrides]]
+module = ["sklearn.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "app.services.preprocessing"
+disallow_subclassing_any = false

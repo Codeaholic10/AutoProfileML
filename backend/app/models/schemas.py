@@ -112,7 +112,7 @@ class JobRecord(BaseModel):
     """State of an asynchronous job, polled by the frontend."""
 
     job_id: str
-    kind: Literal["profiling", "benchmark"]
+    kind: Literal["profiling", "benchmark", "explanation", "export"]
     status: JobStatus = JobStatus.QUEUED
     progress: float = 0.0
     stage: str = "queued"

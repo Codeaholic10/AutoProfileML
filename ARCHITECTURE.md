@@ -38,7 +38,7 @@ AutoProfileML is a two-tier application:
 | Dataset files | `data/datasets/{dataset_id}/` | Yes |
 | Dataset metadata | `data/datasets/{dataset_id}/dataset.json` | Yes |
 | Profile report | `data/profiles/{dataset_id}.json` | Yes |
-| Benchmark runs | `data/benchmarks/{benchmark_id}/run.json` (planned) | Yes |
+| Benchmark runs | `data/benchmarks/{benchmark_id}/run.json` | Yes |
 | Explanations | `data/benchmarks/{benchmark_id}/explanations/` (planned) | Yes |
 | Exported artifacts | `data/artifacts/` (P1) | Yes |
 | Job records | Process memory (`JobStore`) | **No** |
@@ -47,9 +47,10 @@ AutoProfileML is a two-tier application:
 **Current implementation status**
 
 - Implemented: upload, ingestion, profiling, VIF, warnings, dataset listing, re-profiling,
-  job polling, local storage.
-- Planned: preprocessing, benchmark arena, SHAP, explanation UI, benchmark persistence,
-  delete endpoint, P1 export.
+  job polling, local storage with atomic JSON writes, dataset deletion, the preprocessing
+  plan, and the benchmark arena (four models, 5-fold CV, out-of-fold predictions, ranking,
+  persistence, and model artifacts).
+- Planned: SHAP explainability, explanation UI, P1 export.
 
 ---
 
@@ -223,6 +224,7 @@ class BenchmarkRun(BaseModel):
     status: JobStatus
     folds: int
     random_state: int
+    excluded_features: list[str]            # user-declared features never fed to the pipeline
     sample_rows: int | None                 # null when full data was used
     class_support: dict[str, int]           # classification only; CV row count per class
     created_at: datetime
@@ -372,7 +374,7 @@ data/
 │       └── dataset.json             # DatasetSummary JSON
 ├── profiles/
 │   └── {dataset_id}.json            # ProfileReport JSON
-├── benchmarks/                      # planned
+├── benchmarks/
 │   └── {benchmark_id}/
 │       ├── run.json                 # BenchmarkRun JSON
 │       ├── preprocessing.json       # serialized PreprocessingPlan
@@ -380,15 +382,15 @@ data/
 │       │   └── {model_id}.joblib    # server-generated fitted pipeline (trusted)
 │       ├── predictions/
 │       │   └── {model_id}.json      # OutOfFoldPredictions (capped)
-│       └── explanations/
+│       └── explanations/            # planned (Phase 8)
 │           └── {model_id}.json      # ExplanationReport JSON
 └── artifacts/                       # P1 export bundles
 ```
 
-There is **no database**. Metadata is written atomically-enough for a single-process MVP:
-write into a sibling temp file, then `Path.replace()` (add this in Phase 7; current code
-writes directly). Readers treat missing/invalid JSON as "not found" where the API contract
-allows it.
+There is **no database**. Metadata is written atomically: `LocalStorage.write_text` writes a
+sibling temp file and then `Path.replace()`s it, so readers never observe a half-written
+document. Readers treat missing/invalid JSON as "not found" where the API contract allows
+it.
 
 ---
 
@@ -442,15 +444,15 @@ allows it.
 | POST | `/api/datasets` | ✅ | Upload file (multipart `file`), queue profiling, `202` |
 | GET | `/api/datasets` | ✅ | List datasets with `has_profile` + latest job |
 | GET | `/api/datasets/{dataset_id}` | ✅ | Dataset metadata |
-| DELETE | `/api/datasets/{dataset_id}` | ✅ | Delete dataset, metadata, and stored profile, `204` |
+| DELETE | `/api/datasets/{dataset_id}` | ✅ | Delete dataset, metadata, stored profile, and its benchmark runs, `204` |
 | GET | `/api/datasets/{dataset_id}/profile` | ✅ | Profile report; `409` while not ready |
 | POST | `/api/datasets/{dataset_id}/profile` | ✅ | Re-profile, `202` + job |
 | GET | `/api/datasets/{dataset_id}/jobs` | ✅ | Job history for a dataset |
 | GET | `/api/jobs/{job_id}` | ✅ | Poll any job |
-| POST | `/api/datasets/{dataset_id}/benchmarks` | 🔜 | Queue benchmark (target, task, folds), `202` |
-| GET | `/api/datasets/{dataset_id}/benchmarks` | 🔜 | Benchmark history (`BenchmarkSummary[]`) |
-| GET | `/api/benchmarks/{benchmark_id}` | 🔜 | Full run + leaderboard |
-| GET | `/api/benchmarks/{benchmark_id}/models/{model_id}/predictions` | 🔜 | Out-of-fold predictions for confusion matrices, ROC curves, and mistakes |
+| POST | `/api/datasets/{dataset_id}/benchmarks` | ✅ | Queue benchmark (target, task, folds), `202`; `404` unknown dataset, `400` invalid target/folds |
+| GET | `/api/datasets/{dataset_id}/benchmarks` | ✅ | Benchmark history (`BenchmarkSummary[]`); `404` unknown dataset |
+| GET | `/api/benchmarks/{benchmark_id}` | ✅ | Full run + leaderboard; `404` unknown benchmark |
+| GET | `/api/benchmarks/{benchmark_id}/models/{model_id}/predictions` | ✅ | Out-of-fold predictions for confusion matrices, ROC curves, and mistakes; `404` unknown, `409` while queued/running, `400` for regression |
 | POST | `/api/benchmarks/{benchmark_id}/explanations` | 🔜 | Queue SHAP job, `202` |
 | GET | `/api/benchmarks/{benchmark_id}/explanations/{model_id}` | 🔜 | Stored explanation or `409` |
 | GET | `/api/benchmarks/{benchmark_id}/export` | P1 | Download ZIP bundle |
@@ -468,7 +470,7 @@ Errors always use FastAPI's envelope: `{"detail": "<human-readable message>"}`.
 | `204` | Deletion succeeded |
 | `400` | Semantically invalid request (empty upload, unknown target, invalid folds) |
 | `404` | Dataset, job, benchmark, or explanation not found |
-| `409` | Resource exists but is not ready yet (profile/explanation pending) |
+| `409` | Resource exists but is not ready yet (profile, benchmark predictions, or explanation pending) |
 | `413` | Upload exceeds the configured size limit |
 | `415` | Unsupported file type |
 | `422` | Request schema validation (FastAPI default) |
@@ -602,7 +604,9 @@ ColumnTransformer
 ### 5.3 Benchmark arena
 
 - CV: `StratifiedKFold(n_splits=folds, shuffle=True, random_state=42)` for classification,
-  `KFold(...)` for regression. Scoring uses `cross_validate(..., return_train_score=False)`.
+  `KFold(...)` for regression. Scoring uses
+  `cross_validate(..., return_estimator=True)` so each fold's test rows can be scored
+  out-of-fold; the test split is recorded explicitly and reused for that extraction.
 - Model registry (each entry: name, family, estimator factory, supported tasks):
 
 | Family | Classification | Regression |
@@ -623,6 +627,9 @@ ColumnTransformer
   flight so the UI still shows meaningful progress.
 - Primary ranking metric: macro F1 (classification), RMSE (regression). Rank only succeeded
   models.
+- String class labels are encoded with `LabelEncoder` inside a thin classifier wrapper
+  (`LabelEncodedClassifier`) because XGBoost requires numeric labels; `predict` and the
+  persisted out-of-fold rows are decoded back to the original labels.
 - Each model runs in isolation; an exception marks only that `ModelResult` failed.
 - Training data is capped at 250,000 rows; above that a fixed-seed sample is drawn and
   `sample_rows` is set (visible warning in the UI).

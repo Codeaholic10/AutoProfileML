@@ -8,6 +8,7 @@ from pathlib import Path
 
 from app.core.config import Settings, get_settings
 from app.core.jobs import JobStore, get_job_store
+from app.models.benchmark import BenchmarkRun
 from app.models.schemas import (
     DatasetListItem,
     DatasetSummary,
@@ -136,11 +137,10 @@ class DatasetService:
         return self._storage.exists(self._profile_path(dataset_id))
 
     def delete_dataset(self, dataset_id: str) -> None:
-        """Delete a dataset file, its metadata and its stored profile.
+        """Delete a dataset file, its metadata, profile and benchmark runs.
 
         The profile is removed first so a failure while removing the directory
         cannot leave a profile referring to a dataset that no longer exists.
-        Benchmark artifacts are added to this path once Phase 7 writes them.
         """
 
         self.get_dataset(dataset_id)
@@ -149,7 +149,25 @@ class DatasetService:
         if self._storage.exists(profile_path):
             self._storage.delete(profile_path)
 
+        self._delete_benchmarks(dataset_id)
         self._storage.delete_tree(self._settings.datasets_dir / dataset_id)
+
+    def _delete_benchmarks(self, dataset_id: str) -> None:
+        directory = self._settings.benchmarks_dir
+        if not directory.exists():
+            return
+        for entry in directory.iterdir():
+            if not entry.is_dir():
+                continue
+            run_path = entry / "run.json"
+            if not self._storage.exists(run_path):
+                continue
+            try:
+                run = BenchmarkRun.model_validate_json(self._storage.read_text(run_path))
+            except ValueError:
+                continue
+            if run.dataset_id == dataset_id:
+                self._storage.delete_tree(entry)
 
     def list_datasets(self) -> list[DatasetListItem]:
         """List every known dataset with its latest job state."""

@@ -251,6 +251,7 @@ def build_preprocessor(
     task: TaskType,
     *,
     scale_numeric: bool = False,
+    random_state: int = RANDOM_SEED,
 ) -> ColumnTransformer:
     """Build an unfitted, picklable preprocessing pipeline for a partition.
 
@@ -292,13 +293,13 @@ def build_preprocessor(
             StratifiedKFold(
                 n_splits=TARGET_ENCODER_FOLDS,
                 shuffle=True,
-                random_state=RANDOM_SEED,
+                random_state=random_state,
             )
             if task == TaskType.CLASSIFICATION
             else KFold(
                 n_splits=TARGET_ENCODER_FOLDS,
                 shuffle=True,
-                random_state=RANDOM_SEED,
+                random_state=random_state,
             )
         )
         transformers.append(
@@ -339,6 +340,8 @@ def _step_pipeline(preprocessor: ColumnTransformer, name: str) -> Pipeline:
 def describe_preprocessor(
     preprocessor: ColumnTransformer,
     partition: FeaturePartition,
+    *,
+    random_state: int = RANDOM_SEED,
 ) -> PreprocessingPlan:
     """Describe a fitted pipeline so the UI can show exactly what ran."""
 
@@ -423,7 +426,7 @@ def describe_preprocessor(
                     parameters={
                         "smooth": "auto",
                         "cv_folds": TARGET_ENCODER_FOLDS,
-                        "random_state": RANDOM_SEED,
+                        "random_state": random_state,
                     },
                 )
             )

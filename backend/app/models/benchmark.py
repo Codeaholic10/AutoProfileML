@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.models.schemas import JobStatus
+from app.models.schemas import JobRecord, JobStatus
 
 
 def _utcnow() -> datetime:
@@ -75,7 +75,7 @@ class FeaturePartition(BaseModel):
 
 
 class ModelResult(BaseModel):
-    """Placeholder for one model's cross-validated result (filled in Phase 7)."""
+    """One model's cross-validated result."""
 
     model_id: str
     name: str
@@ -90,7 +90,7 @@ class ModelResult(BaseModel):
 
 
 class BenchmarkRun(BaseModel):
-    """Placeholder for a persisted benchmark document (filled in Phase 7)."""
+    """A persisted benchmark document."""
 
     benchmark_id: str
     dataset_id: str
@@ -100,6 +100,7 @@ class BenchmarkRun(BaseModel):
     status: JobStatus = JobStatus.QUEUED
     folds: int = 5
     random_state: int = 42
+    excluded_features: list[str] = Field(default_factory=list)
     sample_rows: int | None = None
     class_support: dict[str, int] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_utcnow)
@@ -108,3 +109,45 @@ class BenchmarkRun(BaseModel):
     leaderboard: list[ModelResult] = Field(default_factory=list)
     best_model_id: str | None = None
     error: str | None = None
+
+
+class OutOfFoldPrediction(BaseModel):
+    """One CV test row scored by the fold model that did not train on it."""
+
+    row_index: int
+    y_true: str | float
+    y_pred: str | float
+    probabilities: dict[str, float] | None = None
+
+
+class OutOfFoldPredictions(BaseModel):
+    """Stored out-of-fold predictions for one model, capped for the payload."""
+
+    benchmark_id: str
+    model_id: str
+    task_type: TaskType
+    classes: list[str] = Field(default_factory=list)
+    prediction_count: int = 0
+    truncated: bool = False
+    predictions: list[OutOfFoldPrediction] = Field(default_factory=list)
+
+
+class BenchmarkSummary(BaseModel):
+    """Compact benchmark representation for history listings."""
+
+    benchmark_id: str
+    dataset_id: str
+    target: str
+    task_type: TaskType
+    status: JobStatus
+    best_model_name: str | None = None
+    primary_metric: str
+    primary_metric_value: float | None = None
+    created_at: datetime
+
+
+class BenchmarkEnqueueResponse(BaseModel):
+    """Response for a queued benchmark run."""
+
+    benchmark: BenchmarkRun
+    job: JobRecord

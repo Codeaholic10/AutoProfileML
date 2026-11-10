@@ -13,6 +13,8 @@ dependencies = [
     "numpy>=2.0.0",
     "scikit-learn>=1.9.1",
     "joblib>=1.6.0",
+    "lightgbm>=4.7.0",
+    "xgboost>=3.4.1",
 ]
 
 [project.optional-dependencies]
@@ -57,9 +59,13 @@ files = ["app"]
 # treated as untyped. The preprocessing module is the only one that subclasses
 # sklearn base classes, which strict mode otherwise rejects when they are Any.
 [[tool.mypy.overrides]]
-module = ["sklearn.*"]
+module = ["sklearn.*", "joblib.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "app.services.preprocessing"
+disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+module = "app.services.benchmarking"
 disallow_subclassing_any = false

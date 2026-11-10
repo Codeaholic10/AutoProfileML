@@ -32,7 +32,7 @@ const semanticTypeSchema = z.enum([
 ]);
 const warningSeveritySchema = z.enum(["info", "warning", "critical"]);
 const collinearitySeveritySchema = z.enum(["ok", "moderate", "severe"]);
-const jobKindSchema = z.enum(["profiling", "benchmark"]);
+const jobKindSchema = z.enum(["profiling", "benchmark", "explanation", "export"]);
 const jobStatusSchema = z.enum(["queued", "running", "succeeded", "failed"]);
 
 export const datasetSummarySchema: z.ZodType<DatasetSummary> = z.object({

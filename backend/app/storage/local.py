@@ -1,6 +1,7 @@
 """Local disk implementation of the storage contract."""
 
 import shutil
+import uuid
 from pathlib import Path
 
 from app.core.config import Settings
@@ -16,6 +17,7 @@ class LocalStorage(Storage):
             settings.storage_root,
             settings.datasets_dir,
             settings.profiles_dir,
+            settings.benchmarks_dir,
             settings.artifacts_dir,
         ):
             directory.mkdir(parents=True, exist_ok=True)
@@ -30,8 +32,15 @@ class LocalStorage(Storage):
         return path
 
     def write_text(self, path: Path, text: str) -> Path:
+        """Write text atomically: a sibling temp file is replaced into place."""
+
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
+        temp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            temp_path.write_text(text, encoding="utf-8")
+            temp_path.replace(path)
+        finally:
+            temp_path.unlink(missing_ok=True)
         return path
 
     def read_text(self, path: Path) -> str:

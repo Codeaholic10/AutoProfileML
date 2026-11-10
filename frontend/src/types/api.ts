@@ -7,7 +7,7 @@
  */
 
 export type DatasetFormat = "csv" | "parquet";
-export type JobKind = "profiling" | "benchmark";
+export type JobKind = "profiling" | "benchmark" | "explanation" | "export";
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 export type SemanticType = "numeric" | "categorical" | "boolean" | "temporal" | "unknown";
 export type WarningSeverity = "info" | "warning" | "critical";

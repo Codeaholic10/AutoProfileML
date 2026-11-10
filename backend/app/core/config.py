@@ -48,6 +48,10 @@ class Settings(BaseSettings):
         return self.storage_root / "profiles"
 
     @property
+    def benchmarks_dir(self) -> Path:
+        return self.storage_root / "benchmarks"
+
+    @property
     def artifacts_dir(self) -> Path:
         return self.storage_root / "artifacts"
 

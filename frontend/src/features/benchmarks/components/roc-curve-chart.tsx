@@ -2,7 +2,6 @@
 
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ReferenceLine,
@@ -72,17 +71,18 @@ export function RocCurveChart({
         <ResponsiveContainer height="100%" width="100%">
           <LineChart
             data={data}
-            margin={{ top: 8, right: 16, bottom: 12, left: 8 }}
+            margin={{ top: 8, right: 16, bottom: 32, left: 24 }}
           >
             <CartesianGrid stroke="var(--viz-grid)" strokeDasharray="3 3" />
             <XAxis
               axisLine={{ stroke: "var(--viz-axis)" }}
               dataKey="fpr"
               domain={[0, 1]}
+              height={48}
               label={{
                 value: "False positive rate",
                 position: "insideBottom",
-                offset: -6,
+                offset: -8,
                 fill: "var(--viz-muted)",
                 fontSize: 12,
               }}
@@ -128,7 +128,6 @@ export function RocCurveChart({
                 `False positive rate ${Number(label).toFixed(2)}`
               }
             />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
             {curves.map((curve, index) => (
               <Line
                 key={curve.label}
@@ -144,6 +143,26 @@ export function RocCurveChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      <ul
+        aria-label="ROC curves and their area under the curve"
+        className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"
+      >
+        {curves.map((curve, index) => (
+          <li key={curve.label} className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="h-0.5 w-4 rounded-full"
+              style={{
+                background: SERIES_COLORS[index % SERIES_COLORS.length],
+              }}
+            />
+            <span>
+              {curve.label} · AUC {curve.auc.toFixed(3)}
+            </span>
+          </li>
+        ))}
+      </ul>
 
       <details className="text-sm">
         <summary className="cursor-pointer text-muted-foreground">

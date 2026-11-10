@@ -104,6 +104,7 @@ export function GlobalImportanceChart({
             <Bar
               dataKey="mean_abs_shap"
               fill="var(--viz-series-1)"
+              isAnimationActive={false}
               maxBarSize={16}
               radius={[0, 4, 4, 0]}
             />

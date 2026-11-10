@@ -3,7 +3,8 @@
 Transparent automated data profiling and machine-learning benchmarking for tabular datasets.
 
 Upload a CSV or Parquet file, get a fast statistical profile with data-quality warnings, then
-(planned) run a leakage-free benchmark of baseline models with SHAP explanations.
+run a leakage-free benchmark of four models and inspect SHAP explanations. This repository is
+the **v0.1.0 MVP** release.
 
 ## Roadmap & Synopsis
 
@@ -110,8 +111,12 @@ Runtime data under `data/`, virtual environments, caches, and `.env` files are g
 | `POST` | `/api/datasets/{id}/profile` | Re-run profiling |
 | `GET` | `/api/datasets/{id}/jobs` | Job history for a dataset |
 | `GET` | `/api/jobs/{id}` | Poll a job |
-
-Benchmark and explanation endpoints are planned — see [PLAN.md](PLAN.md).
+| `POST` | `/api/datasets/{id}/benchmarks` | Queue a benchmark run for a target (`202`) |
+| `GET` | `/api/datasets/{id}/benchmarks` | Benchmark history for a dataset |
+| `GET` | `/api/benchmarks/{id}` | Run plus ranked leaderboard |
+| `GET` | `/api/benchmarks/{id}/models/{model_id}/predictions` | Out-of-fold predictions (`400` for regression) |
+| `POST` | `/api/benchmarks/{id}/explanations` | Queue a SHAP explanation (`202`) |
+| `GET` | `/api/benchmarks/{id}/explanations/{model_id}` | Stored explanation (`404` until generated, `409` while the run is pending) |
 
 ## Frontend
 
@@ -119,8 +124,10 @@ The dashboard in `frontend/` is built with Next.js 16 (App Router, Turbopack), T
 shadcn/ui. It lists datasets, uploads CSV/Parquet files with client-side validation, deletes
 datasets behind a confirmation dialog, and renders the full profile: KPI overview, warnings by
 severity, a sortable/filterable column table with detail dialogs, top-value and quartile
-charts, VIF findings, and a correlation heatmap. See [frontend/README.md](frontend/README.md)
-for toolchain notes.
+charts, VIF findings, and a correlation heatmap. From the dataset page it runs benchmarks and
+renders the ranked leaderboard, preprocessing plan, confusion matrix, ROC curves,
+highest-confidence mistakes, and SHAP global/local explanations. See
+[frontend/README.md](frontend/README.md) for toolchain notes.
 
 ```bash
 cd frontend
@@ -156,6 +163,8 @@ The frontend reads the API base URL from `NEXT_PUBLIC_API_BASE_URL`
 ## MVP Constraints
 
 - Single-user, single-process backend; job progress is in memory and lost on restart.
-- Profiles and benchmark results persist as JSON on local disk.
+- Profiles, benchmark runs, models, and explanations persist on local disk.
+- Benchmark and explanation jobs cannot be cancelled and have no server-side timeout; they run
+  to completion or failure.
 - No authentication or multi-tenancy in the MVP.
 - Tabular CSV/Parquet only; no deep learning, time-series, or unstructured data.

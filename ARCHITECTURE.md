@@ -821,7 +821,7 @@ module constants (e.g., VIF limits) with tests.
 
 | Risk | Mitigation (MVP) |
 | --- | --- |
-| Path traversal via filename | `Path(filename).name` in `LocalStorage.dataset_path`; IDs are UUID hex |
+| Path traversal via filename or id | `Path(filename).name` in `LocalStorage.dataset_path`; dataset ids validated (`^[A-Za-z0-9_-]{1,128}$`) before any path is built; `delete_tree` refuses targets outside the storage root |
 | Unbounded uploads | `max_upload_mb` validated before write; 200 MB default |
 | Malformed datasets | Format allow-list; Polars parse errors surface as failed jobs |
 | Pickle deserialization | Only server-generated joblib artifacts are loaded; the path is resolved from validated benchmark/model IDs, never from client input. No user-supplied pickle is ever loaded. |
@@ -879,15 +879,27 @@ module constants (e.g., VIF limits) with tests.
 
 ## 9. Known Limitations & Technical Debt
 
-Verified on 2026-10-21 against the running backend after Phase 1 (39 tests pass; lint, format,
-and strict mypy clean; upload → profile → failed re-profile → restart exercised over HTTP):
+Verified on 2026-11-10 after Phase 10 (103 tests pass; lint, format, and strict mypy clean;
+the PRD release checklist was exercised in a fresh headless browser profile):
 
-1. **Job state is volatile**; profiles and benchmark results are durable, progress is not.
+1. **Job state is volatile**; profiles, benchmark runs, models, and explanations are
+   durable, progress is not.
 2. **Uploads are fully buffered in memory** (up to 200 MB) — a streaming implementation is
    P1.
 3. **Profiling materializes the full frame**; very wide/large datasets may hit memory limits.
-4. **Dataset deletion is scoped to what exists today** — it removes the dataset directory and
-   stored profile. Benchmark runs and explanations are added to `delete_dataset` when those
-   phases start writing them.
-5. **Benchmark results are not yet modeled or persisted.**
-6. **No CI** — `backend/scripts/check.sh` is the local quality gate until P1 adds CI.
+4. **Benchmark and explanation jobs cannot be cancelled and have no server-side timeout.**
+   They run to completion or error in the background thread; a hung job occupies that
+   thread until the process restarts. Cancellation and timeouts are deferred to P1.
+5. **Single-process only** — the in-memory `JobStore` means multiple Uvicorn workers are
+   unsupported until a real queue replaces it.
+6. **Work is capped**: training rows above 250,000 are sampled, out-of-fold predictions are
+   capped at 20,000 rows, and SHAP uses at most 1,000 evaluation rows over a 100-row
+   background set.
+7. **No CI** — `backend/scripts/check.sh` and the frontend npm scripts are the local quality
+   gate until P1 adds CI.
+8. **Explanation units differ by family** — linear models explain the decision margin while
+   tree models explain their probability output. Contributions are comparable within a
+   model, not across families.
+9. **No authentication** — deliberate for the single-tenant local MVP; see §3.
+10. **Only server-generated joblib artifacts are loaded.** Model ids must be 32-hex and
+    belong to the run; user-supplied pickles are never opened.

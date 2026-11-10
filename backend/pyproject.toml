@@ -37,6 +37,10 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+filterwarnings = [
+    # The deprecated startup hook must never come back (it now uses lifespan).
+    "error:.*on_event.*:DeprecationWarning",
+]
 
 [tool.ruff]
 line-length = 100

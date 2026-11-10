@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -21,6 +22,8 @@ from app.storage.factory import get_storage
 
 METADATA_FILENAME = "dataset.json"
 PROFILE_FILENAME = "profile.json"
+# Dataset ids are server-generated hex strings; tests use short mnemonic names.
+_DATASET_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
 def _utcnow() -> datetime:
@@ -33,6 +36,13 @@ class DatasetNotFoundError(KeyError):
 
 class ProfileNotFoundError(KeyError):
     """Raised when a dataset has no stored profile yet."""
+
+
+def _validate_dataset_id(dataset_id: str) -> None:
+    """Reject ids that could otherwise resolve paths outside the storage root."""
+
+    if _DATASET_ID_PATTERN.fullmatch(dataset_id) is None:
+        raise DatasetNotFoundError(dataset_id)
 
 
 class DatasetService:
@@ -61,6 +71,7 @@ class DatasetService:
     def save_upload(self, dataset_id: str, filename: str, payload: bytes) -> DatasetSummary:
         """Persist an upload and its metadata, returning a dataset summary."""
 
+        _validate_dataset_id(dataset_id)
         ingestion.validate_upload_size(len(payload), self._settings.max_upload_bytes)
         fmt = ingestion.detect_format(filename)
         path = self._storage.dataset_path(dataset_id, filename)
@@ -79,6 +90,7 @@ class DatasetService:
     def get_dataset(self, dataset_id: str) -> DatasetSummary:
         """Load dataset metadata, raising when it does not exist."""
 
+        _validate_dataset_id(dataset_id)
         path = self._metadata_path(dataset_id)
         if not self._storage.exists(path):
             raise DatasetNotFoundError(dataset_id)

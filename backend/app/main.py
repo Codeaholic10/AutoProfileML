@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,13 +21,21 @@ def create_app() -> FastAPI:
     """Build the FastAPI application."""
 
     settings = get_settings()
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        logger.info(
+            "AutoProfileML backend ready (env=%s, storage_root=%s)",
+            settings.env,
+            settings.storage_root.resolve(),
+        )
+        yield
+
     app = FastAPI(
         title="AutoProfileML API",
-        description=(
-            "Transparent automated data profiling and machine learning benchmark engine. "
-            "Phase 1 exposes dataset ingestion, profiling and job telemetry."
-        ),
+        description=("Transparent automated data profiling and machine learning benchmark engine."),
         version=__version__,
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -41,14 +51,6 @@ def create_app() -> FastAPI:
     @app.get("/health", tags=["meta"], summary="Health check")
     async def health() -> dict[str, str]:
         return {"status": "ok", "version": __version__, "env": settings.env}
-
-    @app.on_event("startup")
-    async def _log_startup() -> None:
-        logger.info(
-            "AutoProfileML backend ready (env=%s, storage_root=%s)",
-            settings.env,
-            settings.storage_root.resolve(),
-        )
 
     return app
 

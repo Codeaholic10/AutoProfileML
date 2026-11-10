@@ -103,6 +103,7 @@ export function MetricBarChart({ run }: { run: BenchmarkRun }) {
             <Bar
               dataKey="value"
               fill="var(--viz-series-1)"
+              isAnimationActive={false}
               maxBarSize={24}
               radius={[0, 4, 4, 0]}
             />

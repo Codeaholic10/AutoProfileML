@@ -59,6 +59,15 @@ describe("UploadDropzone", () => {
     pushMock.mockReset();
   });
 
+  it("opens the file picker when the choose button is clicked", () => {
+    renderDropzone();
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose file" }));
+
+    expect(clickSpy).toHaveBeenCalled();
+  });
+
   it("uploads a valid CSV and navigates to the dataset", async () => {
     uploadDatasetMock.mockResolvedValue(uploadResponse);
     renderDropzone();

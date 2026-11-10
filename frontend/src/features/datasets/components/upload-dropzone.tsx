@@ -44,7 +44,7 @@ export function UploadDropzone() {
   const mutation = useUploadDataset();
   const [error, setError] = useState<string | null>(null);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     accept: ACCEPTED_MIME_TYPES,
     maxSize: MAX_UPLOAD_BYTES,
     maxFiles: 1,
@@ -108,7 +108,17 @@ export function UploadDropzone() {
             CSV or Parquet, up to {MAX_UPLOAD_MB} MB
           </p>
         </div>
-        <Button type="button" variant="outline" disabled={mutation.isPending}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={mutation.isPending}
+          onClick={(event) => {
+            // Open explicitly instead of relying on the click bubbling to the
+            // dropzone root, which a nested interactive element can swallow.
+            event.stopPropagation();
+            open();
+          }}
+        >
           {mutation.isPending ? "Uploading…" : "Choose file"}
         </Button>
       </div>

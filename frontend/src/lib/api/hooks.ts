@@ -4,14 +4,24 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import type { JobStatus } from "@/types/api";
+import type {
+  BenchmarkCreateRequest,
+  ExplanationCreateRequest,
+  JobStatus,
+} from "@/types/api";
 
 import { ApiError } from "./client";
 import {
+  createBenchmark,
+  createExplanation,
   deleteDataset,
+  getBenchmark,
   getDataset,
+  getExplanation,
   getJob,
+  getPredictions,
   getProfile,
+  listBenchmarks,
   listDatasets,
   reprofileDataset,
   uploadDataset,
@@ -104,5 +114,83 @@ export function useDeleteDataset() {
       queryClient.removeQueries({ queryKey: queryKeys.datasets.jobs(datasetId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.datasets.list() });
     },
+  });
+}
+
+/* ------------------------------------------------------------------------- */
+/* Benchmarks                                                                 */
+/* ------------------------------------------------------------------------- */
+
+export function useBenchmarks(datasetId: string) {
+  return useQuery({
+    queryKey: queryKeys.benchmarks.list(datasetId),
+    queryFn: () => listBenchmarks(datasetId),
+    enabled: datasetId.length > 0,
+  });
+}
+
+export function useBenchmark(benchmarkId: string) {
+  return useQuery({
+    queryKey: queryKeys.benchmarks.detail(benchmarkId),
+    queryFn: () => getBenchmark(benchmarkId),
+    enabled: benchmarkId.length > 0,
+  });
+}
+
+/** Fetch out-of-fold predictions; regression runs have none (400). */
+export function usePredictions(
+  benchmarkId: string,
+  modelId: string | null,
+  enabled = true,
+) {
+  const model = modelId ?? "";
+  return useQuery({
+    queryKey: queryKeys.benchmarks.predictions(benchmarkId, model),
+    queryFn: () => getPredictions(benchmarkId, model),
+    enabled: enabled && benchmarkId.length > 0 && model.length > 0,
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && [400, 404, 409].includes(error.status)) &&
+      failureCount < 1,
+  });
+}
+
+export function useCreateBenchmark() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: {
+      datasetId: string;
+      request: BenchmarkCreateRequest;
+    }) => createBenchmark(variables.datasetId, variables.request),
+    onSuccess: (response) => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.benchmarks.list(response.benchmark.dataset_id),
+      });
+    },
+  });
+}
+
+/* ------------------------------------------------------------------------- */
+/* Explanations                                                               */
+/* ------------------------------------------------------------------------- */
+
+/** Load a stored explanation; a 404 simply means it has not been generated. */
+export function useExplanation(benchmarkId: string, modelId: string | null) {
+  const model = modelId ?? "";
+  return useQuery({
+    queryKey: queryKeys.explanations.detail(benchmarkId, model),
+    queryFn: () => getExplanation(benchmarkId, model),
+    enabled: benchmarkId.length > 0 && model.length > 0,
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && [404, 409].includes(error.status)) &&
+      failureCount < 1,
+  });
+}
+
+export function useCreateExplanation() {
+  return useMutation({
+    mutationFn: (variables: {
+      benchmarkId: string;
+      request: ExplanationCreateRequest;
+    }) => createExplanation(variables.benchmarkId, variables.request),
   });
 }

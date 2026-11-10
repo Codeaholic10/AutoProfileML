@@ -5,6 +5,16 @@ import { afterAll, afterEach, beforeAll } from "vitest";
 
 import { server } from "./msw/server";
 
+// Recharts' ResponsiveContainer measures its parent; jsdom has no ResizeObserver.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  globalThis.ResizeObserver = ResizeObserverStub;
+}
+
 beforeAll(() => {
   server.listen({ onUnhandledFrame: "error" });
 });

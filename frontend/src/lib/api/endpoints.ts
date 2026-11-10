@@ -1,26 +1,45 @@
-/** Typed calls for every dataset and job endpoint the API exposes. */
+/** Typed calls for every dataset, benchmark, explanation, and job endpoint. */
 
 import type {
+  BenchmarkCreateRequest,
+  BenchmarkEnqueueResponse,
+  BenchmarkRun,
+  BenchmarkSummary,
   DatasetListItem,
   DatasetSummary,
   DatasetUploadResponse,
+  ExplanationCreateRequest,
+  ExplanationEnqueueResponse,
+  ExplanationReport,
   JobRecord,
+  OutOfFoldPredictions,
   ProfileReport,
 } from "@/types/api";
 
 import { apiFetch, apiSend } from "./client";
 import {
+  benchmarkEnqueueResponseSchema,
+  benchmarkRunSchema,
+  benchmarkSummarySchema,
   datasetListItemSchema,
   datasetSummarySchema,
   datasetUploadResponseSchema,
+  explanationEnqueueResponseSchema,
+  explanationReportSchema,
   jobRecordSchema,
+  outOfFoldPredictionsSchema,
   profileReportSchema,
 } from "./schemas";
 
 const DATASETS_PATH = "/api/datasets";
+const BENCHMARKS_PATH = "/api/benchmarks";
 
 function datasetPath(datasetId: string): string {
   return `${DATASETS_PATH}/${encodeURIComponent(datasetId)}`;
+}
+
+function benchmarkPath(benchmarkId: string): string {
+  return `${BENCHMARKS_PATH}/${encodeURIComponent(benchmarkId)}`;
 }
 
 export function listDatasets(): Promise<DatasetListItem[]> {
@@ -61,4 +80,69 @@ export function listDatasetJobs(datasetId: string): Promise<JobRecord[]> {
 
 export function deleteDataset(datasetId: string): Promise<void> {
   return apiSend(datasetPath(datasetId), { method: "DELETE" });
+}
+
+/* ------------------------------------------------------------------------- */
+/* Benchmarks                                                                 */
+/* ------------------------------------------------------------------------- */
+
+export function createBenchmark(
+  datasetId: string,
+  request: BenchmarkCreateRequest,
+): Promise<BenchmarkEnqueueResponse> {
+  return apiFetch(`${datasetPath(datasetId)}/benchmarks`, benchmarkEnqueueResponseSchema, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+}
+
+export function listBenchmarks(datasetId: string): Promise<BenchmarkSummary[]> {
+  return apiFetch(
+    `${datasetPath(datasetId)}/benchmarks`,
+    benchmarkSummarySchema.array(),
+  );
+}
+
+export function getBenchmark(benchmarkId: string): Promise<BenchmarkRun> {
+  return apiFetch(benchmarkPath(benchmarkId), benchmarkRunSchema);
+}
+
+export function getPredictions(
+  benchmarkId: string,
+  modelId: string,
+): Promise<OutOfFoldPredictions> {
+  return apiFetch(
+    `${benchmarkPath(benchmarkId)}/models/${encodeURIComponent(modelId)}/predictions`,
+    outOfFoldPredictionsSchema,
+  );
+}
+
+/* ------------------------------------------------------------------------- */
+/* Explanations                                                               */
+/* ------------------------------------------------------------------------- */
+
+export function createExplanation(
+  benchmarkId: string,
+  request: ExplanationCreateRequest,
+): Promise<ExplanationEnqueueResponse> {
+  return apiFetch(
+    `${benchmarkPath(benchmarkId)}/explanations`,
+    explanationEnqueueResponseSchema,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    },
+  );
+}
+
+export function getExplanation(
+  benchmarkId: string,
+  modelId: string,
+): Promise<ExplanationReport> {
+  return apiFetch(
+    `${benchmarkPath(benchmarkId)}/explanations/${encodeURIComponent(modelId)}`,
+    explanationReportSchema,
+  );
 }

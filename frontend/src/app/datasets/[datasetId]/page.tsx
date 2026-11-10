@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 
+import { BenchmarkForm } from "@/features/benchmarks/components/benchmark-form";
+import { BenchmarkHistory } from "@/features/benchmarks/components/benchmark-history";
 import { ColumnTable } from "@/features/profiling/components/column-table";
 import { CollinearityPanel } from "@/features/profiling/components/collinearity-panel";
 import { CorrelationHeatmap } from "@/features/profiling/components/correlation-heatmap";
@@ -9,7 +11,7 @@ import { ProfileOverview } from "@/features/profiling/components/profile-overvie
 import { ReprofileButton } from "@/features/profiling/components/reprofile-button";
 import { WarningsPanel } from "@/features/profiling/components/warnings-panel";
 import { ApiError } from "@/lib/api/client";
-import { getDataset, getProfile, listDatasetJobs } from "@/lib/api/endpoints";
+import { getDataset, getProfile, listBenchmarks, listDatasetJobs } from "@/lib/api/endpoints";
 import type { DatasetSummary, JobRecord, ProfileReport } from "@/types/api";
 
 async function loadProfile(datasetId: string): Promise<ProfileReport | null> {
@@ -39,9 +41,10 @@ export default async function DatasetDetailPage({
     throw caught;
   }
 
-  const [profile, jobs] = await Promise.all([
+  const [profile, jobs, benchmarks] = await Promise.all([
     loadProfile(datasetId),
     listDatasetJobs(datasetId),
+    listBenchmarks(datasetId),
   ]);
 
   const latestJob: JobRecord | undefined = jobs.at(-1);
@@ -93,6 +96,31 @@ export default async function DatasetDetailPage({
           />
         </section>
       ) : null}
+
+      <section id="benchmarks" className="scroll-mt-8 space-y-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Benchmarks</h2>
+          <p className="text-sm text-muted-foreground">
+            Compare four models on a target column, then inspect their out-of-fold
+            predictions and SHAP explanations.
+          </p>
+        </div>
+
+        {profile ? (
+          <BenchmarkForm
+            datasetId={datasetId}
+            columns={profile.columns}
+            collinearity={profile.collinearity}
+            rowCount={profile.row_count}
+          />
+        ) : (
+          <p className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
+            Profile the dataset before running a benchmark.
+          </p>
+        )}
+
+        <BenchmarkHistory summaries={benchmarks} />
+      </section>
     </div>
   );
 }

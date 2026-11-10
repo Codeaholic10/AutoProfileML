@@ -1,9 +1,10 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { DeleteDatasetDialog } from "@/features/datasets/components/delete-dataset-dialog";
 import { formatBytes, formatCount, formatDateTime } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { DatasetSummary } from "@/types/api";
 
 import { ReprofileButton } from "./reprofile-button";
@@ -38,13 +39,12 @@ export function DatasetHeader({ dataset }: { dataset: DatasetSummary }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ReprofileButton datasetId={dataset.dataset_id} />
-          <Button
-            variant="outline"
-            disabled
-            title="Benchmarking arrives with the model arena."
+          <Link
+            href="#benchmarks"
+            className={cn(buttonVariants({ variant: "outline" }))}
           >
             Benchmark
-          </Button>
+          </Link>
           <DeleteDatasetDialog
             datasetId={dataset.dataset_id}
             filename={dataset.filename}

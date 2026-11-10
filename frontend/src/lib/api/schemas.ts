@@ -10,15 +10,29 @@
 import { z } from "zod";
 
 import type {
+  BenchmarkEnqueueResponse,
+  BenchmarkRun,
+  BenchmarkSummary,
   CollinearityFinding,
   ColumnProfile,
   CorrelationMatrix,
   DatasetListItem,
   DatasetSummary,
   DatasetUploadResponse,
+  ExplanationEnqueueResponse,
+  ExplanationReport,
+  FeatureImportance,
   JobRecord,
+  LocalExplanation,
+  ModelResult,
+  OutOfFoldPrediction,
+  OutOfFoldPredictions,
+  PreprocessingPlan,
+  PreprocessingStep,
   ProfileReport,
   ProfilingWarning,
+  ShapContribution,
+  ShapSummaryPoint,
   TopValue,
 } from "@/types/api";
 
@@ -130,3 +144,160 @@ export const datasetListItemSchema: z.ZodType<DatasetListItem> = z.object({
   has_profile: z.boolean(),
   latest_job: jobRecordSchema.nullable(),
 });
+
+/* ------------------------------------------------------------------------- */
+/* Benchmarks                                                                 */
+/* ------------------------------------------------------------------------- */
+
+const taskTypeSchema = z.enum(["classification", "regression"]);
+const modelFamilySchema = z.enum(["linear", "random_forest", "lightgbm", "xgboost"]);
+const modelStatusSchema = z.enum(["succeeded", "failed"]);
+const scalarValueSchema = z.union([z.number(), z.string(), z.boolean()]);
+const preprocessingStepKindSchema = z.enum([
+  "numeric_impute",
+  "categorical_impute",
+  "iqr_clip",
+  "one_hot_encode",
+  "target_encode",
+  "standard_scale",
+  "drop",
+]);
+
+export const preprocessingStepSchema: z.ZodType<PreprocessingStep> = z.object({
+  kind: preprocessingStepKindSchema,
+  columns: z.array(z.string()),
+  strategy: z.string().nullable(),
+  parameters: z.record(z.string(), scalarValueSchema),
+});
+
+export const preprocessingPlanSchema: z.ZodType<PreprocessingPlan> = z.object({
+  numeric_features: z.array(z.string()),
+  categorical_features: z.array(z.string()),
+  excluded_features: z.array(z.string()),
+  target_encoding: z.array(z.string()),
+  one_hot_encoding: z.array(z.string()),
+  steps: z.array(preprocessingStepSchema),
+  notes: z.array(z.string()),
+});
+
+export const modelResultSchema: z.ZodType<ModelResult> = z.object({
+  model_id: z.string(),
+  name: z.string(),
+  family: modelFamilySchema,
+  status: modelStatusSchema,
+  metrics: z.record(z.string(), z.number()),
+  metric_std: z.record(z.string(), z.number()),
+  training_seconds: z.number(),
+  rank: z.number().nullable(),
+  hyperparameters: z.record(z.string(), scalarValueSchema.nullable()),
+  error: z.string().nullable(),
+});
+
+export const benchmarkRunSchema: z.ZodType<BenchmarkRun> = z.object({
+  benchmark_id: z.string(),
+  dataset_id: z.string(),
+  target: z.string(),
+  task_type: taskTypeSchema,
+  task_detection_reason: z.string(),
+  status: jobStatusSchema,
+  folds: z.number(),
+  random_state: z.number(),
+  excluded_features: z.array(z.string()),
+  sample_rows: z.number().nullable(),
+  class_support: z.record(z.string(), z.number()),
+  created_at: z.string(),
+  updated_at: z.string(),
+  preprocessing: preprocessingPlanSchema.nullable(),
+  leaderboard: z.array(modelResultSchema),
+  best_model_id: z.string().nullable(),
+  error: z.string().nullable(),
+});
+
+export const benchmarkSummarySchema: z.ZodType<BenchmarkSummary> = z.object({
+  benchmark_id: z.string(),
+  dataset_id: z.string(),
+  target: z.string(),
+  task_type: taskTypeSchema,
+  status: jobStatusSchema,
+  best_model_name: z.string().nullable(),
+  primary_metric: z.string(),
+  primary_metric_value: z.number().nullable(),
+  created_at: z.string(),
+});
+
+export const benchmarkEnqueueResponseSchema: z.ZodType<BenchmarkEnqueueResponse> = z.object({
+  benchmark: benchmarkRunSchema,
+  job: jobRecordSchema,
+});
+
+const predictionValueSchema = z.union([z.string(), z.number()]);
+
+export const outOfFoldPredictionSchema: z.ZodType<OutOfFoldPrediction> = z.object({
+  row_index: z.number(),
+  y_true: predictionValueSchema,
+  y_pred: predictionValueSchema,
+  probabilities: z.record(z.string(), z.number()).nullable(),
+});
+
+export const outOfFoldPredictionsSchema: z.ZodType<OutOfFoldPredictions> = z.object({
+  benchmark_id: z.string(),
+  model_id: z.string(),
+  task_type: taskTypeSchema,
+  classes: z.array(z.string()),
+  prediction_count: z.number(),
+  truncated: z.boolean(),
+  predictions: z.array(outOfFoldPredictionSchema),
+});
+
+/* ------------------------------------------------------------------------- */
+/* Explanations                                                               */
+/* ------------------------------------------------------------------------- */
+
+export const featureImportanceSchema: z.ZodType<FeatureImportance> = z.object({
+  feature: z.string(),
+  mean_abs_shap: z.number(),
+  rank: z.number(),
+});
+
+export const shapContributionSchema: z.ZodType<ShapContribution> = z.object({
+  feature: z.string(),
+  value: predictionValueSchema.nullable(),
+  contribution: z.number(),
+});
+
+export const localExplanationSchema: z.ZodType<LocalExplanation> = z.object({
+  row_index: z.number(),
+  prediction: z.number(),
+  base_value: z.number(),
+  contributions: z.array(shapContributionSchema),
+});
+
+export const shapSummaryPointSchema: z.ZodType<ShapSummaryPoint> = z.object({
+  feature: z.string(),
+  feature_value: predictionValueSchema.nullable(),
+  shap_value: z.number(),
+});
+
+export const explanationReportSchema: z.ZodType<ExplanationReport> = z.object({
+  explanation_id: z.string(),
+  benchmark_id: z.string(),
+  model_id: z.string(),
+  method: z.enum(["tree_shap", "linear_shap", "kernel_shap"]),
+  sample_size: z.number(),
+  background_size: z.number(),
+  global_importance: z.array(featureImportanceSchema),
+  summary_points: z.array(shapSummaryPointSchema),
+  local_explanations: z.array(localExplanationSchema),
+  created_at: z.string(),
+  duration_ms: z.number(),
+  warnings: z.array(profilingWarningSchema),
+});
+
+export const explanationEnqueueResponseSchema: z.ZodType<ExplanationEnqueueResponse> =
+  z.object({
+    explanation_id: z.string(),
+    benchmark_id: z.string(),
+    model_id: z.string(),
+    task_type: taskTypeSchema,
+    job: jobRecordSchema,
+  });

@@ -83,6 +83,10 @@
   --sidebar-ring: oklch(0.708 0 0);
   /* Chart tokens validated against the light surface with the dataviz palette check. */
   --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  --viz-series-3: #1baf7a;
+  --viz-series-4: #eda100;
+  --viz-series-5: #e87ba4;
   --viz-positive: #e34948;
   --viz-negative: #2a78d6;
   --viz-neutral: #f0efec;
@@ -125,6 +129,10 @@
   --sidebar-ring: oklch(0.556 0 0);
   /* Dark steps are selected for the dark surface, not an automatic flip. */
   --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+  --viz-series-3: #199e70;
+  --viz-series-4: #c98500;
+  --viz-series-5: #d55181;
   --viz-positive: #e66767;
   --viz-negative: #3987e5;
   --viz-neutral: #383835;

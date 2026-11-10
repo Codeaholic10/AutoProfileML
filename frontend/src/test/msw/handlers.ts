@@ -11,9 +11,15 @@ import { getApiBaseUrl } from "@/lib/api/client";
 import type { JobRecord } from "@/types/api";
 
 import {
+  benchmarkEnqueueResponse,
+  benchmarkRun,
+  benchmarkSummary,
   datasetListItem,
   datasetSummary,
+  explanationEnqueueResponse,
+  explanationReport,
   failedJob,
+  outOfFoldPredictions,
   profileReport,
   queuedJob,
   runningJob,
@@ -51,6 +57,24 @@ export const handlers: HttpHandler[] = [
   ),
   http.get(`${api}/datasets/:datasetId/jobs`, () => HttpResponse.json([succeededJob])),
 
+  // Benchmarks.
+  http.post(`${api}/datasets/:datasetId/benchmarks`, () =>
+    HttpResponse.json(benchmarkEnqueueResponse, { status: 202 }),
+  ),
+  http.get(`${api}/datasets/:datasetId/benchmarks`, () =>
+    HttpResponse.json([benchmarkSummary]),
+  ),
+  http.post(`${api}/benchmarks/:benchmarkId/explanations`, () =>
+    HttpResponse.json(explanationEnqueueResponse, { status: 202 }),
+  ),
+  http.get(`${api}/benchmarks/:benchmarkId/explanations/:modelId`, () =>
+    HttpResponse.json({ detail: "Explanation not found." }, { status: 404 }),
+  ),
+  http.get(`${api}/benchmarks/:benchmarkId/models/:modelId/predictions`, () =>
+    HttpResponse.json(outOfFoldPredictions),
+  ),
+  http.get(`${api}/benchmarks/:benchmarkId`, () => HttpResponse.json(benchmarkRun)),
+
   // Jobs.
   http.get(`${api}/jobs/:jobId`, () => HttpResponse.json(succeededJob)),
 ];
@@ -71,4 +95,15 @@ export function createJobProgressionHandler(jobs: JobRecord[]): HttpHandler {
   });
 }
 
-export { failedJob, queuedJob, runningJob, succeededJob };
+export {
+  benchmarkEnqueueResponse,
+  benchmarkRun,
+  benchmarkSummary,
+  explanationEnqueueResponse,
+  explanationReport,
+  failedJob,
+  outOfFoldPredictions,
+  queuedJob,
+  runningJob,
+  succeededJob,
+};

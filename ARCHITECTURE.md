@@ -49,9 +49,10 @@ AutoProfileML is a two-tier application:
 - Implemented: upload, ingestion, profiling, VIF, warnings, dataset listing, re-profiling,
   job polling, local storage with atomic JSON writes, dataset deletion, the preprocessing
   plan, the benchmark arena (four models, 5-fold CV, out-of-fold predictions, ranking,
-  persistence, and model artifacts), and SHAP explanations (global importance, beeswarm
-  points, per-row contributions).
-- Planned: explanation UI (Phase 9), P1 export.
+  persistence, and model artifacts), SHAP explanations (global importance, beeswarm
+  points, per-row contributions), and the Next.js frontend (dataset library, profile
+  dashboard, benchmark leaderboard and diagnostics, SHAP views).
+- Planned: P1 export.
 
 ---
 

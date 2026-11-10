@@ -108,3 +108,170 @@ export interface DatasetListItem {
   has_profile: boolean;
   latest_job: JobRecord | null;
 }
+
+/* ------------------------------------------------------------------------- */
+/* Benchmarks                                                                 */
+/* ------------------------------------------------------------------------- */
+
+export type TaskType = "classification" | "regression";
+export type ModelFamily = "linear" | "random_forest" | "lightgbm" | "xgboost";
+
+export interface BenchmarkCreateRequest {
+  target: string;
+  task_type: TaskType | null;
+  excluded_features: string[];
+  folds: number;
+}
+
+export type PreprocessingStepKind =
+  | "numeric_impute"
+  | "categorical_impute"
+  | "iqr_clip"
+  | "one_hot_encode"
+  | "target_encode"
+  | "standard_scale"
+  | "drop";
+
+export interface PreprocessingStep {
+  kind: PreprocessingStepKind;
+  columns: string[];
+  strategy: string | null;
+  parameters: Record<string, number | string | boolean>;
+}
+
+export interface PreprocessingPlan {
+  numeric_features: string[];
+  categorical_features: string[];
+  excluded_features: string[];
+  target_encoding: string[];
+  one_hot_encoding: string[];
+  steps: PreprocessingStep[];
+  notes: string[];
+}
+
+export interface ModelResult {
+  model_id: string;
+  name: string;
+  family: ModelFamily;
+  status: "succeeded" | "failed";
+  metrics: Record<string, number>;
+  metric_std: Record<string, number>;
+  training_seconds: number;
+  rank: number | null;
+  hyperparameters: Record<string, number | string | boolean | null>;
+  error: string | null;
+}
+
+export interface BenchmarkRun {
+  benchmark_id: string;
+  dataset_id: string;
+  target: string;
+  task_type: TaskType;
+  task_detection_reason: string;
+  status: JobStatus;
+  folds: number;
+  random_state: number;
+  excluded_features: string[];
+  sample_rows: number | null;
+  class_support: Record<string, number>;
+  created_at: string;
+  updated_at: string;
+  preprocessing: PreprocessingPlan | null;
+  leaderboard: ModelResult[];
+  best_model_id: string | null;
+  error: string | null;
+}
+
+export interface BenchmarkSummary {
+  benchmark_id: string;
+  dataset_id: string;
+  target: string;
+  task_type: TaskType;
+  status: JobStatus;
+  best_model_name: string | null;
+  primary_metric: string;
+  primary_metric_value: number | null;
+  created_at: string;
+}
+
+export interface BenchmarkEnqueueResponse {
+  benchmark: BenchmarkRun;
+  job: JobRecord;
+}
+
+export interface OutOfFoldPrediction {
+  row_index: number;
+  y_true: string | number;
+  y_pred: string | number;
+  probabilities: Record<string, number> | null;
+}
+
+export interface OutOfFoldPredictions {
+  benchmark_id: string;
+  model_id: string;
+  task_type: TaskType;
+  classes: string[];
+  prediction_count: number;
+  truncated: boolean;
+  predictions: OutOfFoldPrediction[];
+}
+
+/* ------------------------------------------------------------------------- */
+/* Explanations                                                               */
+/* ------------------------------------------------------------------------- */
+
+export interface ExplanationCreateRequest {
+  model_id: string;
+  sample_size: number;
+  local_rows: number;
+}
+
+export interface FeatureImportance {
+  feature: string;
+  mean_abs_shap: number;
+  rank: number;
+}
+
+export interface ShapContribution {
+  feature: string;
+  value: string | number | null;
+  contribution: number;
+}
+
+export interface LocalExplanation {
+  row_index: number;
+  prediction: number;
+  base_value: number;
+  contributions: ShapContribution[];
+}
+
+export interface ShapSummaryPoint {
+  feature: string;
+  feature_value: string | number | null;
+  shap_value: number;
+}
+
+export type ExplanationMethod = "tree_shap" | "linear_shap" | "kernel_shap";
+
+export interface ExplanationReport {
+  explanation_id: string;
+  benchmark_id: string;
+  model_id: string;
+  method: ExplanationMethod;
+  sample_size: number;
+  background_size: number;
+  global_importance: FeatureImportance[];
+  summary_points: ShapSummaryPoint[];
+  local_explanations: LocalExplanation[];
+  created_at: string;
+  duration_ms: number;
+  warnings: ProfilingWarning[];
+}
+
+export interface ExplanationEnqueueResponse {
+  explanation_id: string;
+  benchmark_id: string;
+  model_id: string;
+  task_type: TaskType;
+  job: JobRecord;
+}

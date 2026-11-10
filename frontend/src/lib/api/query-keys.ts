@@ -13,4 +13,15 @@ export const queryKeys = {
   jobs: {
     detail: (jobId: string) => ["jobs", jobId] as const,
   },
+  benchmarks: {
+    all: ["benchmarks"] as const,
+    list: (datasetId: string) => ["benchmarks", "list", datasetId] as const,
+    detail: (benchmarkId: string) => ["benchmarks", "detail", benchmarkId] as const,
+    predictions: (benchmarkId: string, modelId: string) =>
+      ["benchmarks", "predictions", benchmarkId, modelId] as const,
+  },
+  explanations: {
+    detail: (benchmarkId: string, modelId: string) =>
+      ["explanations", benchmarkId, modelId] as const,
+  },
 };

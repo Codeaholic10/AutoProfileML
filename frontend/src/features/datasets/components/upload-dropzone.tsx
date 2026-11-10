@@ -7,6 +7,7 @@ import { useDropzone, type FileRejection } from "react-dropzone";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { ApiError } from "@/lib/api/client";
 import { useUploadDataset } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
@@ -43,6 +44,7 @@ export function UploadDropzone() {
   const router = useRouter();
   const mutation = useUploadDataset();
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     accept: ACCEPTED_MIME_TYPES,
@@ -52,6 +54,7 @@ export function UploadDropzone() {
     disabled: mutation.isPending,
     onDrop: (acceptedFiles, rejections) => {
       setError(null);
+      setProgress(null);
       if (rejections.length > 0) {
         setError(describeRejections(rejections));
         return;
@@ -60,19 +63,23 @@ export function UploadDropzone() {
       if (!file) {
         return;
       }
-      mutation.mutate(file, {
-        onSuccess: (response) => {
-          toast.success(`Uploaded ${response.dataset.filename}`);
-          router.push(`/datasets/${response.dataset.dataset_id}`);
+      mutation.mutate(
+        { file, onProgress: setProgress },
+        {
+          onSuccess: (response) => {
+            toast.success(`Uploaded ${response.dataset.filename}`);
+            router.push(`/datasets/${response.dataset.dataset_id}`);
+          },
+          onError: (caught) => {
+            setProgress(null);
+            setError(
+              caught instanceof ApiError
+                ? caught.detail
+                : "Upload failed. Please try again.",
+            );
+          },
         },
-        onError: (caught) => {
-          setError(
-            caught instanceof ApiError
-              ? caught.detail
-              : "Upload failed. Please try again.",
-          );
-        },
-      });
+      );
     },
   });
 
@@ -108,6 +115,18 @@ export function UploadDropzone() {
             CSV or Parquet, up to {MAX_UPLOAD_MB} MB
           </p>
         </div>
+        {mutation.isPending ? (
+          <div className="w-full max-w-sm space-y-1">
+            <Progress value={progress} aria-label="Upload progress" />
+            <p className="text-xs text-muted-foreground">
+              {progress === null
+                ? "Uploading…"
+                : progress < 100
+                  ? `Uploading ${progress}%`
+                  : "Upload complete — starting profiling…"}
+            </p>
+          </div>
+        ) : null}
         <Button
           type="button"
           variant="outline"

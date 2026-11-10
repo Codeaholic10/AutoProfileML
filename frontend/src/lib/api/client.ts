@@ -127,3 +127,63 @@ export async function apiFetch<T>(
 export async function apiSend(path: string, init?: RequestInit): Promise<void> {
   await request(path, init);
 }
+
+/**
+ * Upload a multipart form with transfer progress.
+ *
+ * `XMLHttpRequest` is used because `fetch` does not expose upload progress in
+ * browsers. Response validation and error normalization match `apiFetch`.
+ */
+export function apiUpload<T>(
+  path: string,
+  form: FormData,
+  schema: ZodType<T>,
+  onProgress?: (percent: number) => void,
+): Promise<T> {
+  const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable && onProgress) {
+        onProgress(
+          Math.min(100, Math.round((event.loaded / event.total) * 100)),
+        );
+      }
+    });
+    xhr.addEventListener("error", () => {
+      reject(new ApiError(0, "Could not reach the API server."));
+    });
+    xhr.addEventListener("load", () => {
+      let body: unknown = null;
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {
+        body = null;
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(
+          new ApiError(
+            xhr.status,
+            detailFromBody(body) ?? (xhr.statusText || "Request failed."),
+            xhr.getResponseHeader(REQUEST_ID_HEADER) ?? undefined,
+          ),
+        );
+        return;
+      }
+      const parsed = schema.safeParse(body);
+      if (!parsed.success) {
+        reject(
+          new ApiError(
+            xhr.status,
+            "The server returned an unexpected response shape.",
+          ),
+        );
+        return;
+      }
+      resolve(parsed.data);
+    });
+    xhr.send(form);
+  });
+}

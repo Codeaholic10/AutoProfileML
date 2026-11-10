@@ -104,6 +104,19 @@ describe("UploadDropzone", () => {
     expect(uploadDatasetMock).not.toHaveBeenCalled();
   });
 
+  it("shows upload progress while the file is transferring", async () => {
+    uploadDatasetMock.mockImplementation((_file, onProgress) => {
+      onProgress?.(42);
+      return new Promise(() => {});
+    });
+    renderDropzone();
+
+    drop(csvFile());
+
+    expect(await screen.findByText("Uploading 42%")).toBeInTheDocument();
+    expect(screen.getByLabelText("Upload progress")).toBeInTheDocument();
+  });
+
   it("shows the backend error detail verbatim", async () => {
     uploadDatasetMock.mockRejectedValue(
       new ApiError(413, "Uploaded file is larger than the 200 MB limit."),

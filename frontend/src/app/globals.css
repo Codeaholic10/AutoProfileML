@@ -152,3 +152,15 @@
     @apply font-sans;
   }
 }
+
+/* Native select popups follow the active theme instead of the OS default. */
+select {
+  color-scheme: light;
+}
+.dark select {
+  color-scheme: dark;
+}
+select option {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
+}

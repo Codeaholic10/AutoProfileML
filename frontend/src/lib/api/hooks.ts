@@ -81,7 +81,10 @@ export function useJob(jobId: string | null | undefined) {
 export function useUploadDataset() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => uploadDataset(file),
+    mutationFn: (variables: {
+      file: File;
+      onProgress?: (percent: number) => void;
+    }) => uploadDataset(variables.file, variables.onProgress),
     onSuccess: (response) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.datasets.list() });
       void queryClient.invalidateQueries({

@@ -16,7 +16,7 @@ import type {
   ProfileReport,
 } from "@/types/api";
 
-import { apiFetch, apiSend } from "./client";
+import { apiFetch, apiSend, apiUpload } from "./client";
 import {
   benchmarkEnqueueResponseSchema,
   benchmarkRunSchema,
@@ -54,14 +54,14 @@ export function getProfile(datasetId: string): Promise<ProfileReport> {
   return apiFetch(`${datasetPath(datasetId)}/profile`, profileReportSchema);
 }
 
-/** Upload a file as multipart/form-data; the browser sets the boundary. */
-export function uploadDataset(file: File): Promise<DatasetUploadResponse> {
+/** Upload a file as multipart/form-data, reporting transfer progress. */
+export function uploadDataset(
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<DatasetUploadResponse> {
   const body = new FormData();
   body.append("file", file);
-  return apiFetch(DATASETS_PATH, datasetUploadResponseSchema, {
-    method: "POST",
-    body,
-  });
+  return apiUpload(DATASETS_PATH, body, datasetUploadResponseSchema, onProgress);
 }
 
 export function reprofileDataset(datasetId: string): Promise<JobRecord> {

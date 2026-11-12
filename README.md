@@ -22,7 +22,7 @@ model training, and code-generation wording).
 | Preprocessing engine (leakage-free) | ✅ Implemented (Phase 6) |
 | Benchmark arena (models, CV, ranking, OOF) | ✅ Backend implemented (Phase 7) |
 | SHAP explainability (global + per-row) | ✅ Backend implemented (Phase 8) |
-| Benchmark & explanation UI | ✅ Implemented (Phase 9) |
+| Benchmark & explanation UI | ✅ Implemented, including cross-run comparison (Phases 9, P1-5) |
 | Code/artifact export (script, notebook, ZIP) | ✅ Implemented (P1, no ONNX) |
 
 See [PRD.md](PRD.md) for scope, [ARCHITECTURE.md](ARCHITECTURE.md) for the technical design,
@@ -130,7 +130,8 @@ severity, a sortable/filterable column table with detail dialogs, top-value and 
 charts, VIF findings, and a correlation heatmap. From the dataset page it runs benchmarks and
 renders the ranked leaderboard, preprocessing plan, confusion matrix, ROC curves,
 highest-confidence mistakes, and SHAP global/local explanations, and downloads a standalone
-export bundle (training script, notebook, and fitted pipeline). See
+export bundle (training script, notebook, and fitted pipeline), and compares two runs of the
+same dataset side by side with per-family metric deltas. See
 [frontend/README.md](frontend/README.md) for toolchain notes.
 
 ```bash
@@ -171,7 +172,8 @@ The frontend reads the API base URL from `NEXT_PUBLIC_API_BASE_URL`
 - Benchmark, explanation, and export jobs cannot be cancelled and have no server-side
   timeout; they run to completion or failure.
 - Exported `model.joblib` files require the backend package to unpickle; the generated
-  training script rebuilds a standalone pipeline. ONNX is not supported, and the benchmark
-  comparison view remains deferred.
+  training script rebuilds a standalone pipeline. ONNX is not supported. Cross-run
+  comparison shows descriptive metric deltas and configuration caveats, not statistical
+  significance.
 - No authentication or multi-tenancy in the MVP.
 - Tabular CSV/Parquet only; no deep learning, time-series, or unstructured data.

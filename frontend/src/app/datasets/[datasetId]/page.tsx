@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { BenchmarkForm } from "@/features/benchmarks/components/benchmark-form";
 import { BenchmarkHistory } from "@/features/benchmarks/components/benchmark-history";
+import { ComparePicker } from "@/features/benchmarks/components/compare-picker";
 import { ColumnTable } from "@/features/profiling/components/column-table";
 import { CollinearityPanel } from "@/features/profiling/components/collinearity-panel";
 import { CorrelationHeatmap } from "@/features/profiling/components/correlation-heatmap";
@@ -118,6 +119,10 @@ export default async function DatasetDetailPage({
             Profile the dataset before running a benchmark.
           </p>
         )}
+
+        {benchmarks.length >= 2 ? (
+          <ComparePicker datasetId={datasetId} summaries={benchmarks} />
+        ) : null}
 
         <BenchmarkHistory summaries={benchmarks} />
       </section>

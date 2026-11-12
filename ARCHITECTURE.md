@@ -52,8 +52,9 @@ AutoProfileML is a two-tier application:
   persistence, and model artifacts), SHAP explanations (global importance, beeswarm
   points, per-row contributions), P1 export bundles (standalone script, notebook, README,
   and joblib artifact), and the Next.js frontend (dataset library, profile dashboard,
-  benchmark leaderboard and diagnostics, SHAP views, export panel).
-- Deferred: benchmark comparison view (P1-5) and the remaining P1 ideas.
+  benchmark leaderboard and diagnostics, SHAP views, export panel, and cross-run
+  comparison).
+- Deferred: the remaining P1 ideas (tuning, extra models, auth, alternate storage, CI).
 
 ---
 
@@ -659,6 +660,11 @@ ColumnTransformer
   requested benchmark before resolving a path; never accept a model path from the client.
 - Run-level failure (bad target, unreadable file) marks the job failed; per-model failures do
   not.
+- **Cross-run comparison** is a frontend-only view over two persisted runs of the same
+  dataset: models are matched by family, primary-metric deltas are shown for each family, and
+  configuration differences (target, task, folds, sampled rows, exclusions) are surfaced as
+  caveats. No new backend endpoint or storage is required, and no statistical significance is
+  implied.
 
 ### 5.4 Explainability
 
@@ -950,6 +956,8 @@ the PRD release checklist was exercised in a fresh headless browser profile):
 11. **Exported `model.joblib` needs the backend package** to unpickle (custom preprocessing
     classes); the generated script rebuilds a standalone pipeline instead. ONNX is not
     supported for the same reason (no skl2onnx converters).
-12. **Benchmark comparison (P1-5) is deferred.** Export bundles exist only for models of
-    completed runs and are rebuilt on demand; there is no bundle retention policy beyond
-    dataset deletion and benchmark re-runs.
+12. **Cross-run comparison is descriptive.** It matches families across two runs and shows
+    metric deltas with configuration caveats, but performs no significance testing;
+    differences caused by different folds or samples may be noise. Export bundles exist only
+    for models of completed runs and are rebuilt on demand; there is no bundle retention
+    policy beyond dataset deletion and benchmark re-runs.

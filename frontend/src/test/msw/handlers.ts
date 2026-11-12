@@ -18,6 +18,8 @@ import {
   datasetSummary,
   explanationEnqueueResponse,
   explanationReport,
+  exportEnqueueResponse,
+  exportManifest,
   failedJob,
   outOfFoldPredictions,
   profileReport,
@@ -70,6 +72,12 @@ export const handlers: HttpHandler[] = [
   http.get(`${api}/benchmarks/:benchmarkId/explanations/:modelId`, () =>
     HttpResponse.json({ detail: "Explanation not found." }, { status: 404 }),
   ),
+  http.post(`${api}/benchmarks/:benchmarkId/exports`, () =>
+    HttpResponse.json(exportEnqueueResponse, { status: 202 }),
+  ),
+  http.get(`${api}/benchmarks/:benchmarkId/exports/:modelId`, () =>
+    HttpResponse.json({ detail: "Export not found." }, { status: 404 }),
+  ),
   http.get(`${api}/benchmarks/:benchmarkId/models/:modelId/predictions`, () =>
     HttpResponse.json(outOfFoldPredictions),
   ),
@@ -101,6 +109,8 @@ export {
   benchmarkSummary,
   explanationEnqueueResponse,
   explanationReport,
+  exportEnqueueResponse,
+  exportManifest,
   failedJob,
   outOfFoldPredictions,
   queuedJob,

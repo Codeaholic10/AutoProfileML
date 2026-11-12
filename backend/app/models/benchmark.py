@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 
 from app.models.schemas import JobRecord, JobStatus
 
+MAX_BENCHMARK_ROWS = 250_000
+
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
@@ -30,6 +32,7 @@ class BenchmarkCreateRequest(BaseModel):
     excluded_features: list[str] = Field(default_factory=list)
     folds: int = Field(default=5, ge=3, le=10)
     random_state: int = 42
+    sample_cap: int | None = Field(default=None, ge=100, le=MAX_BENCHMARK_ROWS)
 
 
 class PreprocessingStep(BaseModel):
@@ -101,6 +104,7 @@ class BenchmarkRun(BaseModel):
     folds: int = 5
     random_state: int = 42
     excluded_features: list[str] = Field(default_factory=list)
+    sample_cap: int | None = None
     sample_rows: int | None = None
     class_support: dict[str, int] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=_utcnow)

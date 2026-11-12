@@ -27,8 +27,15 @@ class LocalStorage(Storage):
         return self._settings.datasets_dir / dataset_id / safe_name
 
     def write_bytes(self, path: Path, data: bytes) -> Path:
+        """Write bytes atomically: a sibling temp file is replaced into place."""
+
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+        temp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            temp_path.write_bytes(data)
+            temp_path.replace(path)
+        finally:
+            temp_path.unlink(missing_ok=True)
         return path
 
     def write_text(self, path: Path, text: str) -> Path:

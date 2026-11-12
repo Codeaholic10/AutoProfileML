@@ -23,7 +23,7 @@ model training, and code-generation wording).
 | Benchmark arena (models, CV, ranking, OOF) | ✅ Backend implemented (Phase 7) |
 | SHAP explainability (global + per-row) | ✅ Backend implemented (Phase 8) |
 | Benchmark & explanation UI | ✅ Implemented (Phase 9) |
-| Code/artifact export | 🚧 P1 |
+| Code/artifact export (script, notebook, ZIP) | ✅ Implemented (P1, no ONNX) |
 
 See [PRD.md](PRD.md) for scope, [ARCHITECTURE.md](ARCHITECTURE.md) for the technical design,
 [PLAN.md](PLAN.md) for the execution roadmap, and [CLAUDE.md](CLAUDE.md) for contributor and
@@ -117,6 +117,9 @@ Runtime data under `data/`, virtual environments, caches, and `.env` files are g
 | `GET` | `/api/benchmarks/{id}/models/{model_id}/predictions` | Out-of-fold predictions (`400` for regression) |
 | `POST` | `/api/benchmarks/{id}/explanations` | Queue a SHAP explanation (`202`) |
 | `GET` | `/api/benchmarks/{id}/explanations/{model_id}` | Stored explanation (`404` until generated, `409` while the run is pending) |
+| `POST` | `/api/benchmarks/{id}/exports` | Queue a standalone export bundle for a model (`202`) |
+| `GET` | `/api/benchmarks/{id}/exports/{model_id}` | Bundle manifest (`404` until generated, `409` while the run is pending) |
+| `GET` | `/api/benchmarks/{id}/exports/{model_id}/download` | Download the script + notebook + model ZIP |
 
 ## Frontend
 
@@ -126,7 +129,8 @@ datasets behind a confirmation dialog, and renders the full profile: KPI overvie
 severity, a sortable/filterable column table with detail dialogs, top-value and quartile
 charts, VIF findings, and a correlation heatmap. From the dataset page it runs benchmarks and
 renders the ranked leaderboard, preprocessing plan, confusion matrix, ROC curves,
-highest-confidence mistakes, and SHAP global/local explanations. See
+highest-confidence mistakes, and SHAP global/local explanations, and downloads a standalone
+export bundle (training script, notebook, and fitted pipeline). See
 [frontend/README.md](frontend/README.md) for toolchain notes.
 
 ```bash
@@ -163,8 +167,11 @@ The frontend reads the API base URL from `NEXT_PUBLIC_API_BASE_URL`
 ## MVP Constraints
 
 - Single-user, single-process backend; job progress is in memory and lost on restart.
-- Profiles, benchmark runs, models, and explanations persist on local disk.
-- Benchmark and explanation jobs cannot be cancelled and have no server-side timeout; they run
-  to completion or failure.
+- Profiles, benchmark runs, models, explanations, and export bundles persist on local disk.
+- Benchmark, explanation, and export jobs cannot be cancelled and have no server-side
+  timeout; they run to completion or failure.
+- Exported `model.joblib` files require the backend package to unpickle; the generated
+  training script rebuilds a standalone pipeline. ONNX is not supported, and the benchmark
+  comparison view remains deferred.
 - No authentication or multi-tenancy in the MVP.
 - Tabular CSV/Parquet only; no deep learning, time-series, or unstructured data.

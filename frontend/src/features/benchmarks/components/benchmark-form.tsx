@@ -28,6 +28,7 @@ const formSchema = z.object({
     .int("Folds must be a whole number.")
     .min(3, "Use at least 3 folds.")
     .max(10, "Use at most 10 folds."),
+  sampleCap: z.enum(["all", "10000", "50000", "100000"]),
   excluded: z.array(z.string()),
 });
 
@@ -68,7 +69,13 @@ export function BenchmarkForm({
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { target: "", taskType: "auto", folds: 5, excluded: [] },
+    defaultValues: {
+      target: "",
+      taskType: "auto",
+      folds: 5,
+      sampleCap: "all",
+      excluded: [],
+    },
   });
 
   const target = useWatch({ control, name: "target" });
@@ -99,6 +106,7 @@ export function BenchmarkForm({
       task_type: values.taskType === "auto" ? null : values.taskType,
       excluded_features: values.excluded.filter((name) => name !== values.target),
       folds: values.folds,
+      sample_cap: values.sampleCap === "all" ? null : Number(values.sampleCap),
     };
     mutation.mutate(
       { datasetId, request },
@@ -136,7 +144,7 @@ export function BenchmarkForm({
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1">
           <label htmlFor="benchmark-target" className="text-xs text-muted-foreground">
             Target column
@@ -196,6 +204,22 @@ export function BenchmarkForm({
               {errors.folds.message}
             </p>
           ) : null}
+        </div>
+
+        <div className="space-y-1">
+          <label htmlFor="benchmark-sample" className="text-xs text-muted-foreground">
+            Training rows
+          </label>
+          <select
+            id="benchmark-sample"
+            className={selectClassName}
+            {...register("sampleCap")}
+          >
+            <option value="all">All (max 250,000)</option>
+            <option value="10000">10,000</option>
+            <option value="50000">50,000</option>
+            <option value="100000">100,000</option>
+          </select>
         </div>
       </div>
 

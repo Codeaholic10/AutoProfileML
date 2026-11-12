@@ -180,6 +180,9 @@ class DatasetService:
                 continue
             if run.dataset_id == dataset_id:
                 self._storage.delete_tree(entry)
+                exports = self._settings.artifacts_dir / entry.name
+                if self._storage.exists(exports):
+                    self._storage.delete_tree(exports)
 
     def list_datasets(self) -> list[DatasetListItem]:
         """List every known dataset with its latest job state."""

@@ -7,6 +7,7 @@ import { MetricBarChart } from "@/features/benchmarks/components/metric-bar-char
 import { ModelInspector } from "@/features/benchmarks/components/model-inspector";
 import { PreprocessingPlanPanel } from "@/features/benchmarks/components/preprocessing-plan-panel";
 import { ExplanationPanel } from "@/features/explanations/components/explanation-panel";
+import { ExportPanel } from "@/features/exports/components/export-panel";
 import { ApiError } from "@/lib/api/client";
 import { getBenchmark } from "@/lib/api/endpoints";
 import type { BenchmarkRun } from "@/types/api";
@@ -61,6 +62,7 @@ export default async function BenchmarkDetailPage({
           <LeaderboardTable run={run} />
           <ModelInspector run={run} />
           <ExplanationPanel run={run} />
+          <ExportPanel run={run} />
         </>
       ) : null}
 

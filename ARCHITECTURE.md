@@ -40,7 +40,7 @@ AutoProfileML is a two-tier application:
 | Profile report | `data/profiles/{dataset_id}.json` | Yes |
 | Benchmark runs | `data/benchmarks/{benchmark_id}/run.json` | Yes |
 | Explanations | `data/benchmarks/{benchmark_id}/explanations/` | Yes |
-| Exported artifacts | `data/artifacts/` (P1) | Yes |
+| Exported artifacts | `data/artifacts/{benchmark_id}/` | Yes |
 | Job records | Process memory (`JobStore`) | **No** |
 | Upload bytes in flight | Request memory | No |
 
@@ -50,9 +50,10 @@ AutoProfileML is a two-tier application:
   job polling, local storage with atomic JSON writes, dataset deletion, the preprocessing
   plan, the benchmark arena (four models, 5-fold CV, out-of-fold predictions, ranking,
   persistence, and model artifacts), SHAP explanations (global importance, beeswarm
-  points, per-row contributions), and the Next.js frontend (dataset library, profile
-  dashboard, benchmark leaderboard and diagnostics, SHAP views).
-- Planned: P1 export.
+  points, per-row contributions), P1 export bundles (standalone script, notebook, README,
+  and joblib artifact), and the Next.js frontend (dataset library, profile dashboard,
+  benchmark leaderboard and diagnostics, SHAP views, export panel).
+- Deferred: benchmark comparison view (P1-5) and the remaining P1 ideas.
 
 ---
 
@@ -227,7 +228,8 @@ class BenchmarkRun(BaseModel):
     folds: int
     random_state: int
     excluded_features: list[str]            # user-declared features never fed to the pipeline
-    sample_rows: int | None                 # null when full data was used
+    sample_cap: int | None                  # user-requested row cap, null = default 250k
+    sample_rows: int | None                 # rows actually used after sampling; null when unsampled
     class_support: dict[str, int]           # classification only; CV row count per class
     created_at: datetime
     updated_at: datetime
@@ -393,7 +395,10 @@ data/
 │       │   └── {model_id}.json      # OutOfFoldPredictions (capped)
 │       └── explanations/
 │           └── {model_id}.json      # ExplanationReport JSON
-└── artifacts/                       # P1 export bundles
+└── artifacts/
+    └── {benchmark_id}/
+        ├── {model_id}.zip             # train_model.py + .ipynb + README.txt + model.joblib
+        └── {model_id}.json            # ExportManifest
 ```
 
 There is **no database**. Metadata is written atomically: `LocalStorage.write_text` writes a
@@ -464,7 +469,9 @@ it.
 | GET | `/api/benchmarks/{benchmark_id}/models/{model_id}/predictions` | ✅ | Out-of-fold predictions for confusion matrices, ROC curves, and mistakes; `404` unknown, `409` while queued/running, `400` for regression |
 | POST | `/api/benchmarks/{benchmark_id}/explanations` | ✅ | Queue SHAP job, `202`; `404` unknown benchmark/model, `409` benchmark not finished, `400` unsupported family |
 | GET | `/api/benchmarks/{benchmark_id}/explanations/{model_id}` | ✅ | Stored explanation; `404` unknown model or missing report, `409` benchmark not finished |
-| GET | `/api/benchmarks/{benchmark_id}/export` | P1 | Download ZIP bundle |
+| POST | `/api/benchmarks/{benchmark_id}/exports` | ✅ | Queue a standalone bundle for one model, `202`; `404` unknown benchmark/model, `409` run not finished, `400` unsupported family |
+| GET | `/api/benchmarks/{benchmark_id}/exports/{model_id}` | ✅ | Export manifest (`ExportManifest`); `404` unknown model or missing bundle, `409` run not finished |
+| GET | `/api/benchmarks/{benchmark_id}/exports/{model_id}/download` | ✅ | Download the ZIP bundle (`application/zip`); `404` until generated |
 
 ✅ = implemented · 🔜 = MVP planned · P1 = post-MVP
 
@@ -640,8 +647,9 @@ ColumnTransformer
   (`LabelEncodedClassifier`) because XGBoost requires numeric labels; `predict` and the
   persisted out-of-fold rows are decoded back to the original labels.
 - Each model runs in isolation; an exception marks only that `ModelResult` failed.
-- Training data is capped at 250,000 rows; above that a fixed-seed sample is drawn and
-  `sample_rows` is set (visible warning in the UI).
+- Training data is capped at 250,000 rows by default; a run may request a lower `sample_cap`
+  (100–250,000). When sampling applies, `sample_rows` records the rows actually used and the
+  UI shows a visible warning.
 - Cross-validation metrics describe fold performance. After ranking, each succeeded pipeline
   is **refit on the full (or sampled) dataset** with the same hyperparameters and persisted
   with joblib to `data/benchmarks/{benchmark_id}/models/{model_id}.joblib`. SHAP and P1 export
@@ -681,12 +689,48 @@ ColumnTransformer
 
 ### 5.5 Code export (P1)
 
-- Generate a commented standalone script from `PreprocessingPlan` + model hyperparameters,
-  using sklearn `Pipeline` construction — not string templates with untrusted input.
-- Serialize the fitted pipeline with joblib; optionally export ONNX only after a feasibility
-  spike (`skl2onnx` support for LightGBM/XGBoost/TargetEncoder must be verified).
-- Bundle script, notebook, and artifacts into a ZIP under `data/artifacts/{benchmark_id}/`.
-- Never execute generated code in the backend; only render it for download.
+Export produces one ZIP per benchmark model under `data/artifacts/{benchmark_id}/`:
+
+```
+{model_id}.zip
+  ├── train_model.py       # standalone training script (generated)
+  ├── train_model.ipynb    # same workflow with markdown notes
+  ├── README.txt           # provenance, usage, artifact caveats
+  └── model.joblib         # the fitted pipeline from the benchmark
+```
+
+- Generation is driven by the **fitted** preprocessing plan (re-derived with
+  `describe_preprocessor` from the model's own pipeline, so non-best models work too) and by
+  the hyperparameters recorded on `ModelResult`. Estimator classes come from a fixed
+  allow-list (family × task); unknown families are a `400`.
+- The script is self-contained: no import of the backend package. It defines inline
+  `IQRClipper` and `LabelEncodedClassifier` helpers (plain scikit-learn base classes) that
+  mirror the project's transformers, rebuilds the `ColumnTransformer` (median/KNN imputation,
+  IQR clipping, categorical imputation, one-hot/target encoding, scaling for linear models),
+  constructs the estimator, fits, and saves `model.joblib`.
+- All run-supplied values (target, column names, hyperparameters) are embedded as
+  `repr()`-escaped Python literals, never as identifiers or raw source. Column names with
+  quotes or import statements cannot alter the script structure.
+- Generated source is validated with `ast.parse` before packaging; the notebook is built as
+  notebook-v4 JSON and reparsed with `json.loads`. A validation failure fails the job and
+  leaves any previous bundle intact.
+- The archive is written atomically through `LocalStorage.write_bytes` (temp file +
+  `replace`), and re-exporting a model overwrites its bundle idempotently. The backend never
+  executes generated code.
+- Exports live under `data/artifacts/`, outside the benchmark directory. Dataset deletion and
+  benchmark re-runs remove the matching `artifacts/{benchmark_id}/` tree.
+- **ONNX is not shipped.** The feasibility spike (skl2onnx 1.20.0, onnxruntime 1.31.1,
+  temporarily installed and removed) showed that a plain sklearn pipeline converts, but a
+  project pipeline fails with `MissingShapeCalculator` for `AdaptiveNumericImputer`;
+  `IQRClipper` and `LabelEncodedClassifier` likewise have no registered converters. Faithful
+  conversion would require maintaining custom converters, which P1 does not justify. The
+  manifest records this note for the UI.
+- The bundled `model.joblib` is the project's fitted pipeline and unpickling it requires the
+  backend package (custom preprocessing classes). Running the generated script rebuilds an
+  equivalent pipeline with plain scikit-learn and writes its own `model.joblib`; the README
+  states this difference explicitly.
+- The benchmark comparison view (P1-5) remains deferred; export, sampling controls, and the
+  rest of P1's export path are implemented.
 
 ---
 
@@ -882,19 +926,19 @@ module constants (e.g., VIF limits) with tests.
 Verified on 2026-11-10 after Phase 10 (103 tests pass; lint, format, and strict mypy clean;
 the PRD release checklist was exercised in a fresh headless browser profile):
 
-1. **Job state is volatile**; profiles, benchmark runs, models, and explanations are
-   durable, progress is not.
+1. **Job state is volatile**; profiles, benchmark runs, models, explanations, and export
+   bundles are durable, progress is not.
 2. **Uploads are fully buffered in memory** (up to 200 MB) — a streaming implementation is
    P1.
 3. **Profiling materializes the full frame**; very wide/large datasets may hit memory limits.
-4. **Benchmark and explanation jobs cannot be cancelled and have no server-side timeout.**
-   They run to completion or error in the background thread; a hung job occupies that
-   thread until the process restarts. Cancellation and timeouts are deferred to P1.
+4. **Benchmark, explanation, and export jobs cannot be cancelled and have no server-side
+   timeout.** They run to completion or error in the background thread; a hung job occupies
+   that thread until the process restarts. Cancellation and timeouts are deferred to P1.
 5. **Single-process only** — the in-memory `JobStore` means multiple Uvicorn workers are
    unsupported until a real queue replaces it.
-6. **Work is capped**: training rows above 250,000 are sampled, out-of-fold predictions are
-   capped at 20,000 rows, and SHAP uses at most 1,000 evaluation rows over a 100-row
-   background set.
+6. **Work is capped**: training rows default to 250,000 (optionally lowered per run),
+   out-of-fold predictions are capped at 20,000 rows, and SHAP uses at most 1,000 evaluation
+   rows over a 100-row background set.
 7. **No CI** — `backend/scripts/check.sh` and the frontend npm scripts are the local quality
    gate until P1 adds CI.
 8. **Explanation units differ by family** — linear models explain the decision margin while
@@ -903,3 +947,9 @@ the PRD release checklist was exercised in a fresh headless browser profile):
 9. **No authentication** — deliberate for the single-tenant local MVP; see §3.
 10. **Only server-generated joblib artifacts are loaded.** Model ids must be 32-hex and
     belong to the run; user-supplied pickles are never opened.
+11. **Exported `model.joblib` needs the backend package** to unpickle (custom preprocessing
+    classes); the generated script rebuilds a standalone pipeline instead. ONNX is not
+    supported for the same reason (no skl2onnx converters).
+12. **Benchmark comparison (P1-5) is deferred.** Export bundles exist only for models of
+    completed runs and are rebuilt on demand; there is no bundle retention policy beyond
+    dataset deletion and benchmark re-runs.

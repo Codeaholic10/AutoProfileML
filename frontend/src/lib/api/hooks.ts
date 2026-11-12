@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   BenchmarkCreateRequest,
   ExplanationCreateRequest,
+  ExportCreateRequest,
   JobStatus,
 } from "@/types/api";
 
@@ -14,10 +15,12 @@ import { ApiError } from "./client";
 import {
   createBenchmark,
   createExplanation,
+  createExport,
   deleteDataset,
   getBenchmark,
   getDataset,
   getExplanation,
+  getExportManifest,
   getJob,
   getPredictions,
   getProfile,
@@ -195,5 +198,31 @@ export function useCreateExplanation() {
       benchmarkId: string;
       request: ExplanationCreateRequest;
     }) => createExplanation(variables.benchmarkId, variables.request),
+  });
+}
+
+/* ------------------------------------------------------------------------- */
+/* Exports                                                                    */
+/* ------------------------------------------------------------------------- */
+
+/** Load an export manifest; a 404 means no bundle has been generated yet. */
+export function useExportManifest(benchmarkId: string, modelId: string | null) {
+  const model = modelId ?? "";
+  return useQuery({
+    queryKey: queryKeys.exports.detail(benchmarkId, model),
+    queryFn: () => getExportManifest(benchmarkId, model),
+    enabled: benchmarkId.length > 0 && model.length > 0,
+    retry: (failureCount, error) =>
+      !(error instanceof ApiError && [404, 409].includes(error.status)) &&
+      failureCount < 1,
+  });
+}
+
+export function useCreateExport() {
+  return useMutation({
+    mutationFn: (variables: {
+      benchmarkId: string;
+      request: ExportCreateRequest;
+    }) => createExport(variables.benchmarkId, variables.request),
   });
 }

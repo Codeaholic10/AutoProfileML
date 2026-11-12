@@ -24,4 +24,8 @@ export const queryKeys = {
     detail: (benchmarkId: string, modelId: string) =>
       ["explanations", benchmarkId, modelId] as const,
   },
+  exports: {
+    detail: (benchmarkId: string, modelId: string) =>
+      ["exports", benchmarkId, modelId] as const,
+  },
 };

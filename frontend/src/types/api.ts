@@ -121,6 +121,7 @@ export interface BenchmarkCreateRequest {
   task_type: TaskType | null;
   excluded_features: string[];
   folds: number;
+  sample_cap: number | null;
 }
 
 export type PreprocessingStepKind =
@@ -172,6 +173,7 @@ export interface BenchmarkRun {
   folds: number;
   random_state: number;
   excluded_features: string[];
+  sample_cap: number | null;
   sample_rows: number | null;
   class_support: Record<string, number>;
   created_at: string;
@@ -270,6 +272,42 @@ export interface ExplanationReport {
 
 export interface ExplanationEnqueueResponse {
   explanation_id: string;
+  benchmark_id: string;
+  model_id: string;
+  task_type: TaskType;
+  job: JobRecord;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Exports                                                                    */
+/* ------------------------------------------------------------------------- */
+
+export interface ExportCreateRequest {
+  model_id: string;
+}
+
+export interface ExportFile {
+  name: string;
+  size_bytes: number;
+}
+
+export interface ExportManifest {
+  export_id: string;
+  benchmark_id: string;
+  model_id: string;
+  target: string;
+  task_type: TaskType;
+  model_name: string;
+  files: ExportFile[];
+  size_bytes: number;
+  includes_onnx: boolean;
+  onnx_note: string | null;
+  created_at: string;
+  duration_ms: number;
+}
+
+export interface ExportEnqueueResponse {
+  export_id: string;
   benchmark_id: string;
   model_id: string;
   task_type: TaskType;

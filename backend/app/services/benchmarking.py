@@ -35,6 +35,7 @@ from xgboost import XGBClassifier, XGBRegressor
 from app.core.config import Settings, get_settings
 from app.core.jobs import JobStore, get_job_store
 from app.models.benchmark import (
+    MAX_BENCHMARK_ROWS,
     BenchmarkCreateRequest,
     BenchmarkRun,
     BenchmarkSummary,
@@ -57,7 +58,7 @@ from app.services.preprocessing import (
 from app.storage.base import Storage
 from app.storage.factory import get_storage
 
-MAX_TRAIN_ROWS = 250_000
+MAX_TRAIN_ROWS = MAX_BENCHMARK_ROWS
 PREDICTION_CAP = 20_000
 PRIMARY_METRIC: dict[TaskType, str] = {
     TaskType.CLASSIFICATION: "f1_macro",
@@ -722,6 +723,7 @@ class BenchmarkService:
             folds=request.folds,
             random_state=request.random_state,
             excluded_features=list(request.excluded_features),
+            sample_cap=request.sample_cap,
         )
         self._persist_run(run)
         return run, job
@@ -747,13 +749,16 @@ class BenchmarkService:
         )
 
     def _clear_artifacts(self, benchmark_id: str) -> None:
-        """Remove models, predictions and explanations from a previous attempt."""
+        """Remove models, predictions, explanations and exports from a previous attempt."""
 
         directory = self._benchmark_dir(benchmark_id)
         for name in ("models", "predictions", "explanations"):
             artifact = directory / name
             if self._storage.exists(artifact):
                 self._storage.delete_tree(artifact)
+        exports = self._settings.artifacts_dir / benchmark_id
+        if self._storage.exists(exports):
+            self._storage.delete_tree(exports)
 
     def run_benchmark(self, benchmark_id: str, job_id: str) -> None:
         """Background entrypoint: train, rank, refit and persist a run."""
@@ -774,7 +779,11 @@ class BenchmarkService:
                 self._datasets.dataset_file(run.dataset_id), summary.format
             )
             profile = self._datasets.get_profile(run.dataset_id)
-            frame, sample_rows = sample_training_frame(frame, seed=run.random_state)
+            frame, sample_rows = sample_training_frame(
+                frame,
+                max_rows=run.sample_cap or MAX_TRAIN_ROWS,
+                seed=run.random_state,
+            )
             run.sample_rows = sample_rows
             partition = partition_features(frame, run.target, run.excluded_features, profile)
             features = (

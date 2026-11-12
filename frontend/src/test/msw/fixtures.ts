@@ -9,6 +9,8 @@ import type {
   DatasetUploadResponse,
   ExplanationEnqueueResponse,
   ExplanationReport,
+  ExportEnqueueResponse,
+  ExportManifest,
   JobRecord,
   OutOfFoldPredictions,
   ProfileReport,
@@ -167,6 +169,7 @@ export const benchmarkRun: BenchmarkRun = {
   folds: 5,
   random_state: 42,
   excluded_features: [],
+  sample_cap: null,
   sample_rows: null,
   class_support: { delhi: 4, mumbai: 3, pune: 3 },
   created_at: CREATED_AT,
@@ -421,5 +424,39 @@ export const explanationEnqueueResponse: ExplanationEnqueueResponse = {
     job_id: "job-explain",
     kind: "explanation",
     result: { explanation_id: explanationReport.explanation_id },
+  },
+};
+
+export const exportManifest: ExportManifest = {
+  export_id: "export-0001",
+  benchmark_id: benchmarkRun.benchmark_id,
+  model_id: "model-forest",
+  target: benchmarkRun.target,
+  task_type: "classification",
+  model_name: "Random Forest",
+  files: [
+    { name: "train_model.py", size_bytes: 5120 },
+    { name: "train_model.ipynb", size_bytes: 8192 },
+    { name: "README.txt", size_bytes: 2048 },
+    { name: "model.joblib", size_bytes: 262144 },
+  ],
+  size_bytes: 277504,
+  includes_onnx: false,
+  onnx_note:
+    "ONNX is not included: custom preprocessing classes have no skl2onnx converters.",
+  created_at: "2026-10-22T09:10:00Z",
+  duration_ms: 320.5,
+};
+
+export const exportEnqueueResponse: ExportEnqueueResponse = {
+  export_id: exportManifest.export_id,
+  benchmark_id: benchmarkRun.benchmark_id,
+  model_id: "model-forest",
+  task_type: "classification",
+  job: {
+    ...succeededJob,
+    job_id: "job-export",
+    kind: "export",
+    result: { export_id: exportManifest.export_id },
   },
 };

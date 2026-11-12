@@ -11,12 +11,15 @@ import type {
   ExplanationCreateRequest,
   ExplanationEnqueueResponse,
   ExplanationReport,
+  ExportCreateRequest,
+  ExportEnqueueResponse,
+  ExportManifest,
   JobRecord,
   OutOfFoldPredictions,
   ProfileReport,
 } from "@/types/api";
 
-import { apiFetch, apiSend, apiUpload } from "./client";
+import { apiFetch, apiSend, apiUpload, getApiBaseUrl } from "./client";
 import {
   benchmarkEnqueueResponseSchema,
   benchmarkRunSchema,
@@ -26,6 +29,8 @@ import {
   datasetUploadResponseSchema,
   explanationEnqueueResponseSchema,
   explanationReportSchema,
+  exportEnqueueResponseSchema,
+  exportManifestSchema,
   jobRecordSchema,
   outOfFoldPredictionsSchema,
   profileReportSchema,
@@ -145,4 +150,43 @@ export function getExplanation(
     `${benchmarkPath(benchmarkId)}/explanations/${encodeURIComponent(modelId)}`,
     explanationReportSchema,
   );
+}
+
+/* ------------------------------------------------------------------------- */
+/* Exports                                                                    */
+/* ------------------------------------------------------------------------- */
+
+export function createExport(
+  benchmarkId: string,
+  request: ExportCreateRequest,
+): Promise<ExportEnqueueResponse> {
+  return apiFetch(
+    `${benchmarkPath(benchmarkId)}/exports`,
+    exportEnqueueResponseSchema,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    },
+  );
+}
+
+export function getExportManifest(
+  benchmarkId: string,
+  modelId: string,
+): Promise<ExportManifest> {
+  return apiFetch(
+    `${benchmarkPath(benchmarkId)}/exports/${encodeURIComponent(modelId)}`,
+    exportManifestSchema,
+  );
+}
+
+/** Direct download URL for an anchor tag; no fetch, no JSON body. */
+export function getExportDownloadUrl(
+  benchmarkId: string,
+  modelId: string,
+): string {
+  return `${getApiBaseUrl()}${benchmarkPath(benchmarkId)}/exports/${encodeURIComponent(
+    modelId,
+  )}/download`;
 }

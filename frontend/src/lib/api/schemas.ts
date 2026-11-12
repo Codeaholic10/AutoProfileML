@@ -21,6 +21,9 @@ import type {
   DatasetUploadResponse,
   ExplanationEnqueueResponse,
   ExplanationReport,
+  ExportEnqueueResponse,
+  ExportFile,
+  ExportManifest,
   FeatureImportance,
   JobRecord,
   LocalExplanation,
@@ -203,6 +206,7 @@ export const benchmarkRunSchema: z.ZodType<BenchmarkRun> = z.object({
   folds: z.number(),
   random_state: z.number(),
   excluded_features: z.array(z.string()),
+  sample_cap: z.number().nullable(),
   sample_rows: z.number().nullable(),
   class_support: z.record(z.string(), z.number()),
   created_at: z.string(),
@@ -296,6 +300,39 @@ export const explanationReportSchema: z.ZodType<ExplanationReport> = z.object({
 export const explanationEnqueueResponseSchema: z.ZodType<ExplanationEnqueueResponse> =
   z.object({
     explanation_id: z.string(),
+    benchmark_id: z.string(),
+    model_id: z.string(),
+    task_type: taskTypeSchema,
+    job: jobRecordSchema,
+  });
+
+/* ------------------------------------------------------------------------- */
+/* Exports                                                                    */
+/* ------------------------------------------------------------------------- */
+
+export const exportFileSchema: z.ZodType<ExportFile> = z.object({
+  name: z.string(),
+  size_bytes: z.number(),
+});
+
+export const exportManifestSchema: z.ZodType<ExportManifest> = z.object({
+  export_id: z.string(),
+  benchmark_id: z.string(),
+  model_id: z.string(),
+  target: z.string(),
+  task_type: taskTypeSchema,
+  model_name: z.string(),
+  files: z.array(exportFileSchema),
+  size_bytes: z.number(),
+  includes_onnx: z.boolean(),
+  onnx_note: z.string().nullable(),
+  created_at: z.string(),
+  duration_ms: z.number(),
+});
+
+export const exportEnqueueResponseSchema: z.ZodType<ExportEnqueueResponse> =
+  z.object({
+    export_id: z.string(),
     benchmark_id: z.string(),
     model_id: z.string(),
     task_type: taskTypeSchema,

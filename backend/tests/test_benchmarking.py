@@ -276,6 +276,27 @@ def test_model_paths_are_confined_to_the_benchmark_directory(
         benchmark_service.get_benchmark("../../escape")
 
 
+def test_benchmark_sample_cap_limits_training_rows(
+    monkeypatch, benchmark_service: BenchmarkService, service
+) -> None:
+    monkeypatch.setattr(benchmarking, "MODEL_SPECS", (benchmarking.MODEL_SPECS[0],))
+    dataset_id = _prepare_dataset(service, build_frame(rows=200))
+    run, job = benchmark_service.enqueue(
+        dataset_id,
+        BenchmarkCreateRequest(target="city", folds=3, sample_cap=120),
+    )
+
+    benchmark_service.run_benchmark(run.benchmark_id, job.job_id)
+
+    stored = benchmark_service.get_benchmark(run.benchmark_id)
+    assert stored.status is JobStatus.SUCCEEDED
+    assert stored.sample_cap == 120
+    assert stored.sample_rows == 120
+    assert stored.best_model_id is not None
+    predictions = benchmark_service.get_oof_predictions(run.benchmark_id, stored.best_model_id)
+    assert predictions.prediction_count == 120
+
+
 def test_dataset_deletion_removes_its_benchmarks(
     benchmark_service: BenchmarkService, service, settings
 ) -> None:

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { LeaderboardTable } from "@/features/benchmarks/components/leaderboard-table";
 import { benchmarkRun, regressionRun } from "@/test/msw/fixtures";
@@ -53,5 +53,18 @@ describe("LeaderboardTable", () => {
     const rows = bodyRows();
     expect(within(rows[0] as HTMLElement).getByText("Ridge")).toBeVisible();
     expect(within(rows[0] as HTMLElement).getByText("812.5")).toBeInTheDocument();
+  });
+
+  it("renders sortable headers without React key warnings", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(<LeaderboardTable run={benchmarkRun} />);
+      const keyWarnings = errorSpy.mock.calls.filter((args) =>
+        args.some((arg) => String(arg).includes('unique "key"')),
+      );
+      expect(keyWarnings).toHaveLength(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });

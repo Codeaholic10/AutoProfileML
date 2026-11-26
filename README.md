@@ -1,104 +1,180 @@
 # AutoProfileML
 
-Transparent automated data profiling and machine-learning benchmarking for tabular datasets.
+[![CI](https://github.com/Codeaholic10/AutoProfileML/actions/workflows/ci.yml/badge.svg)](https://github.com/Codeaholic10/AutoProfileML/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/Python-3.14-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)
+![Polars](https://img.shields.io/badge/Polars-1.44-CD792C?logo=polars&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.9-F7931E?logo=scikitlearn&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 
-Upload a CSV or Parquet file, get a fast statistical profile with data-quality warnings, then
-run a leakage-free benchmark of four models and inspect SHAP explanations. This repository is
-the **v0.1.0 MVP** release.
+**Transparent AutoML for tabular data.** Upload a CSV or Parquet file and AutoProfileML profiles
+it, benchmarks four model families with leakage-free cross-validation, explains the winner with
+SHAP, and exports a standalone training script you can run without the app.
 
-## Roadmap & Synopsis
+Most AutoML tools hand you a model and hide how they got there. AutoProfileML shows every step:
+which preprocessing was fitted where, how each model scored on identical folds, why the model
+predicts what it does, and the exact code to reproduce it.
 
-The product requirements derive from `AutoProfileML_Synopsis.pdf`. Its five methodology phases
-map onto the roadmap phases in order — see "Synopsis Alignment" in [PLAN.md](PLAN.md) for the
-full mapping and the three documented adaptations (adaptive/KNN imputation bounds, sequential
-model training, and code-generation wording).
+![Benchmark leaderboard](docs/screenshots/leaderboard.png)
 
-## Project Status
+## Highlights
 
-| Area | Status |
+- **Fast profiling with Polars.** Per-column stats, missingness, skew/kurtosis, top values,
+  duplicate detection, VIF multicollinearity and correlation, plus severity-tagged data-quality
+  warnings. A 4,424 × 37 dataset profiles in about 50 ms of compute.
+- **Leakage-free preprocessing.** Adaptive imputation (KNN or median, chosen per fold),
+  one-hot and target encoding, IQR clipping and scaling all live inside one scikit-learn
+  `Pipeline` that is refitted on every training fold. Nothing is fitted on the full dataset
+  before splitting.
+- **Fair benchmark arena.** Logistic/Ridge, Random Forest, LightGBM and XGBoost run on the
+  *same* seeded folds (stratified for classification), ranked by task-aware metrics with
+  fold standard deviations. Confusion matrices and ROC curves come from persisted out-of-fold
+  predictions.
+- **Explanations tied to the real model.** SHAP (Tree or Linear explainer) runs on the exact
+  persisted pipeline: global importance, a beeswarm, and per-row contribution breakdowns, on a
+  fixed-seed sample capped at 1,000 rows.
+- **Reproducible export.** One click produces a ZIP with `train_model.py`, a matching Jupyter
+  notebook, a README and the fitted pipeline. A test extracts the script and runs it in a
+  clean process to prove it works standalone.
+- **Run comparison.** Put two runs of the same dataset side by side, with per-family metric
+  deltas and warnings when their configurations differ.
+
+## Results
+
+Evaluated on two public UCI datasets (credit default and student outcomes) with a stratified
+80/20 hold-out. AutoProfileML ran 5-fold CV on the training split, and its persisted best model
+scored the hold-out rows.
+
+| Dataset | AutoProfileML (4 fixed models) | FLAML AutoML | H2O AutoML |
+| --- | --- | --- | --- |
+| Credit default (10k train rows) | **0.670** macro F1 · 19 s | 0.679 · 120 s budget | 0.701 · 30 s |
+| Student outcomes (3.5k train rows) | **0.681** macro F1 · 31 s | 0.684 · 120 s budget | 0.702 · 41 s |
+
+- Within **0.01 macro F1 of FLAML** in **4–6× less training time**. H2O's stacked ensembles
+  lead by about 0.02–0.03; AutoProfileML trades that last bit of accuracy for transparency and
+  reproducibility.
+- Profiling took **about 1 s end to end, 10–13× faster than Sweetviz** on the same files,
+  with zero difference from pandas across 400+ statistics.
+- Reported CV metrics and SHAP importances match a direct scikit-learn/SHAP computation of the
+  same pipeline to within **1e-6**.
+
+## Screenshots
+
+| Dataset profile | Model diagnostics (out-of-fold) |
 | --- | --- |
-| Backend API (ingestion, profiling, jobs) | ✅ Implemented |
-| Frontend (Next.js dashboard) | ✅ Dataset library, upload/delete, profile dashboard, benchmark leaderboard and SHAP views (Phases 2–5, 9) |
-| Preprocessing engine (leakage-free) | ✅ Implemented (Phase 6) |
-| Benchmark arena (models, CV, ranking, OOF) | ✅ Backend implemented (Phase 7) |
-| SHAP explainability (global + per-row) | ✅ Backend implemented (Phase 8) |
-| Benchmark & explanation UI | ✅ Implemented, including cross-run comparison (Phases 9, P1-5) |
-| Code/artifact export (script, notebook, ZIP) | ✅ Implemented (P1, no ONNX) |
+| ![Profile overview and warnings](docs/screenshots/profile.png) | ![Confusion matrix and ROC curves](docs/screenshots/diagnostics.png) |
 
-See [PRD.md](PRD.md) for scope, [ARCHITECTURE.md](ARCHITECTURE.md) for the technical design,
-[PLAN.md](PLAN.md) for the execution roadmap, and [CLAUDE.md](CLAUDE.md) for contributor and
-agent rules.
+| SHAP global importance and beeswarm | SHAP per-row explanation |
+| --- | --- |
+| ![SHAP global importance](docs/screenshots/shap-global.png) | ![SHAP per-row contributions](docs/screenshots/shap-local.png) |
 
-## Prerequisites
+![Comparing two benchmark runs](docs/screenshots/compare.png)
 
-- **Python 3.11+** (the local venv is 3.14.6)
-- **pip** and **venv** (bundled with Python)
-- **Node.js 22+** and **npm 10+** for the frontend
-- **Git Bash** on Windows (all documented commands use POSIX shell syntax)
+## Architecture
 
-No database, Redis, Docker, or external services are required.
+```mermaid
+flowchart LR
+    UI["Next.js 16 dashboard<br/>TanStack Query · Zod · Recharts"] -->|"REST · job polling"| API["FastAPI routes"]
+    API --> JOBS[("JobStore<br/>progress + status")]
+    API -->|"BackgroundTasks"| SVC
 
-## Backend Setup
+    subgraph SVC["Services"]
+        ING["Ingestion<br/>Polars lazy scan"] --> PROF["Profiling<br/>stats · VIF · warnings"]
+        PROF --> BENCH["Benchmark arena<br/>4 models · K-fold CV"]
+        BENCH --> SHAP["SHAP explainer"]
+        BENCH --> EXP["Export<br/>script · notebook · ZIP"]
+    end
 
-```bash
-cd backend
-python -m venv .venv
-source .venv/Scripts/activate        # Git Bash on Windows
-pip install -e ".[dev]"
-cp .env.example .env                 # optional; defaults work as-is
+    SVC --> STORE[("Storage<br/>JSON + joblib artifacts")]
 ```
 
-Run the API:
+How each fold stays leakage-free:
+
+```mermaid
+flowchart LR
+    DATA["Dataset"] --> SPLIT["Seeded K-fold split<br/>(same folds for every model)"]
+    SPLIT --> TRAIN["Training fold"]
+    SPLIT --> VAL["Validation fold"]
+    TRAIN --> FIT["Fit imputer · encoders · scaler · model"]
+    FIT --> PRED["Transform + predict validation fold"]
+    VAL --> PRED
+    PRED --> OOF["Out-of-fold predictions<br/>metrics · confusion matrix · ROC"]
+```
+
+Routes only validate input and call one service; services own the ML logic and never import
+FastAPI; all persisted objects go through a `Storage` interface. The full design, API contract
+and decision records are in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Tech stack
+
+| Layer | Tools |
+| --- | --- |
+| Backend | Python 3.14, FastAPI, Pydantic v2, Polars, NumPy |
+| ML | scikit-learn, LightGBM, XGBoost, SHAP, joblib |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript (strict), Tailwind CSS v4, shadcn/ui, TanStack Query, Zod, Recharts |
+| Quality | pytest, Vitest, Testing Library, MSW, Ruff, mypy (strict), ESLint, GitHub Actions |
+
+## Engineering practices
+
+- Every push runs lint, format, strict type checks, the full test suites and a production
+  build in GitHub Actions ([workflow](.github/workflows/ci.yml)).
+- Backend tests use deterministic synthetic frames and isolated temporary storage; frontend
+  tests mock the API with MSW and test what the user sees.
+- Fixed random seed (`42`) for splits, models and SHAP sampling, so runs are reproducible.
+- Long work (profiling, training, SHAP, export) runs as background jobs with progress
+  reporting; one failing model never takes down the run.
+- Uploads are validated for type, emptiness and size; filenames are sanitized; only
+  server-written model files are ever unpickled.
+
+## Quick start
+
+Requires Python 3.11+ and Node.js 22+.
 
 ```bash
+# Backend: http://localhost:8000 (OpenAPI docs at /docs)
+cd backend
+python -m venv .venv
+source .venv/Scripts/activate        # Windows Git Bash; use .venv/bin/activate on macOS/Linux
+pip install -e ".[dev]" -c constraints.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-- API: `http://localhost:8000`
-- Health: `http://localhost:8000/health`
-- OpenAPI docs: `http://localhost:8000/docs`
-
-## Backend Checks
-
 ```bash
-cd backend
-bash scripts/check.sh        # lint + format + mypy + tests, in that order
+# Frontend: http://localhost:3000
+cd frontend
+npm ci
+npm run dev
 ```
 
-Individually:
+Then open http://localhost:3000, upload a CSV or Parquet file, pick a target column and run a
+benchmark.
+
+### Checks
 
 ```bash
-cd backend
-source .venv/Scripts/activate
-
-ruff check .                 # lint
-ruff format --check .        # format check
-mypy app                     # strict type-check
-pytest -q                    # tests
-```
-
-Run a single test file or case:
-
-```bash
-pytest tests/test_profiling.py -q
-pytest tests/test_api.py::test_upload_profiles_dataset_end_to_end -q
+cd backend && bash scripts/check.sh        # ruff, ruff format --check, mypy, pytest
+cd frontend && npm run lint && npm run typecheck && npm test && npm run build
 ```
 
 ## Configuration
 
-Backend settings use the `AUTOPROFILEML_` prefix and can be set in `backend/.env`:
+Backend settings use the `AUTOPROFILEML_` prefix and can be set in `backend/.env`
+(see [backend/.env.example](backend/.env.example)):
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `AUTOPROFILEML_ENV` | `development` | Environment label |
-| `AUTOPROFILEML_STORAGE_ROOT` | `./data` | Dataset, profile, and artifact storage |
+| `AUTOPROFILEML_STORAGE_ROOT` | `./data` | Dataset, profile and artifact storage |
 | `AUTOPROFILEML_MAX_UPLOAD_MB` | `200` | Maximum upload size |
 | `AUTOPROFILEML_CORS_ORIGINS` | `http://localhost:3000` | Allowed frontend origins (comma-separated) |
 | `AUTOPROFILEML_JOB_RETENTION_SECONDS` | `21600` | In-memory job retention (6 hours) |
 
-Runtime data under `data/`, virtual environments, caches, and `.env` files are gitignored.
+The frontend reads `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8000`) and
+`NEXT_PUBLIC_MAX_UPLOAD_MB`. See [frontend/README.md](frontend/README.md).
 
-## Current API
+<details>
+<summary><strong>REST API</strong></summary>
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -106,7 +182,7 @@ Runtime data under `data/`, virtual environments, caches, and `.env` files are g
 | `POST` | `/api/datasets` | Upload CSV/Parquet and queue profiling |
 | `GET` | `/api/datasets` | List datasets with profile/job state |
 | `GET` | `/api/datasets/{id}` | Dataset metadata |
-| `DELETE` | `/api/datasets/{id}` | Delete a dataset, its metadata, and its profile (`204`) |
+| `DELETE` | `/api/datasets/{id}` | Delete a dataset, its metadata and its profile (`204`) |
 | `GET` | `/api/datasets/{id}/profile` | Stored profile (`409` while pending) |
 | `POST` | `/api/datasets/{id}/profile` | Re-run profiling |
 | `GET` | `/api/datasets/{id}/jobs` | Job history for a dataset |
@@ -121,59 +197,38 @@ Runtime data under `data/`, virtual environments, caches, and `.env` files are g
 | `GET` | `/api/benchmarks/{id}/exports/{model_id}` | Bundle manifest (`404` until generated, `409` while the run is pending) |
 | `GET` | `/api/benchmarks/{id}/exports/{model_id}/download` | Download the script + notebook + model ZIP |
 
-## Frontend
+</details>
 
-The dashboard in `frontend/` is built with Next.js 16 (App Router, Turbopack), Tailwind v4, and
-shadcn/ui. It lists datasets, uploads CSV/Parquet files with client-side validation, deletes
-datasets behind a confirmation dialog, and renders the full profile: KPI overview, warnings by
-severity, a sortable/filterable column table with detail dialogs, top-value and quartile
-charts, VIF findings, and a correlation heatmap. From the dataset page it runs benchmarks and
-renders the ranked leaderboard, preprocessing plan, confusion matrix, ROC curves,
-highest-confidence mistakes, and SHAP global/local explanations, and downloads a standalone
-export bundle (training script, notebook, and fitted pipeline), and compares two runs of the
-same dataset side by side with per-family metric deltas. See
-[frontend/README.md](frontend/README.md) for toolchain notes.
+<details>
+<summary><strong>Troubleshooting</strong></summary>
 
-```bash
-cd frontend
-npm install
-npm run dev        # http://localhost:3000
-npm run lint
-npm run typecheck
-npm test
-```
-
-The frontend reads the API base URL from `NEXT_PUBLIC_API_BASE_URL`
-(default `http://localhost:8000`).
-
-## Troubleshooting
-
-- **`ruff format` panics with a range error:** the files previously contained a UTF-8 BOM.
-  They have been stripped; `.editorconfig` now enforces plain UTF-8. Re-clone or re-save the
-  file without BOM if it reappears.
 - **Port already in use:** run Uvicorn on another port (`--port 8001`) and set
   `NEXT_PUBLIC_API_BASE_URL` to match.
 - **Browser requests blocked by CORS:** add the frontend origin to
-  `AUTOPROFILEML_CORS_ORIGINS` (comma-separated) and restart the backend.
-- **Uploads rejected:** the limit is `AUTOPROFILEML_MAX_UPLOAD_MB` (200 MB default); only
-  `.csv`, `.parquet`, and `.pq` are accepted. Empty files return `400`, oversized files `413`,
-  and unsupported types `415`.
+  `AUTOPROFILEML_CORS_ORIGINS` and restart the backend.
+- **Uploads rejected:** only `.csv`, `.parquet` and `.pq` are accepted, up to
+  `AUTOPROFILEML_MAX_UPLOAD_MB`. Empty files return `400`, oversized files `413`, unsupported
+  types `415`.
 - **Where did my data go?** Everything is under `AUTOPROFILEML_STORAGE_ROOT` (default
-  `backend/data/` while running from `backend/`). The directory is gitignored.
-- **Job disappeared after restart:** job progress is in memory by design; profiles and
-  benchmark results persist on disk.
-- **A re-profile failed:** the previous profile and dataset shape are preserved; fix the file
-  and re-run profiling. The job error names the dataset and the parser problem.
+  `backend/data/` when running from `backend/`). It is gitignored.
+- **Job disappeared after restart:** job progress is in memory by design; profiles, runs and
+  artifacts persist on disk.
+- **`ruff format` panics with a range error:** a file was saved with a UTF-8 BOM; re-save it
+  as plain UTF-8 (`.editorconfig` enforces this).
 
-## MVP Constraints
+</details>
 
-- Single-user, single-process backend; job progress is in memory and lost on restart.
-- Profiles, benchmark runs, models, explanations, and export bundles persist on local disk.
-- Benchmark, explanation, and export jobs cannot be cancelled and have no server-side
-  timeout; they run to completion or failure.
-- Exported `model.joblib` files require the backend package to unpickle; the generated
-  training script rebuilds a standalone pipeline. ONNX is not supported. Cross-run
-  comparison shows descriptive metric deltas and configuration caveats, not statistical
-  significance.
-- No authentication or multi-tenancy in the MVP.
-- Tabular CSV/Parquet only; no deep learning, time-series, or unstructured data.
+## Current limitations and roadmap
+
+This is a single-user MVP by design:
+
+- Job progress lives in one process's memory, so the API runs as a single worker, and models
+  train one after another inside a job.
+- Data and artifacts are stored on local disk; there is no authentication or multi-tenancy.
+- Jobs cannot be cancelled; exported `model.joblib` files need the backend package to unpickle
+  (the generated script rebuilds a standalone pipeline instead). No ONNX export.
+- Tabular CSV/Parquet only; no deep learning, time series or unstructured data.
+
+Next steps: a Redis-backed job queue with separate workers and a concurrency cap, parallel
+model training, streaming profiling for multi-million-row files, Docker Compose, and object
+storage with per-user ownership.

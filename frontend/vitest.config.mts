@@ -14,5 +14,8 @@ export default defineConfig({
     environment: "jsdom",
     include: ["tests/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
     setupFiles: ["./src/test/setup.ts"],
+    // Component tests render full feature trees with MSW; shared CI runners are slower
+    // than a dev machine, so the 5 s default flakes there.
+    testTimeout: 15_000,
   },
 });

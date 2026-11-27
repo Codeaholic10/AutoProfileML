@@ -156,6 +156,16 @@ export function comparabilityWarnings(
       `Fold counts differ (${left.folds} vs ${right.folds}); metric differences include fold noise.`,
     );
   }
+  if (left.cv_strategy !== right.cv_strategy) {
+    warnings.push(
+      `Cross-validation strategies differ (${left.cv_strategy} vs ${right.cv_strategy}); the fold structure is not directly comparable.`,
+    );
+  }
+  if (left.group_column !== right.group_column) {
+    warnings.push(
+      `Group columns differ (${left.group_column ?? "none"} vs ${right.group_column ?? "none"}).`,
+    );
+  }
   const leftRows = left.sample_rows === null ? "full dataset" : `${left.sample_rows} sampled rows`;
   const rightRows =
     right.sample_rows === null ? "full dataset" : `${right.sample_rows} sampled rows`;

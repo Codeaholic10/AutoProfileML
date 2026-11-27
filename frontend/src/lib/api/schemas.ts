@@ -205,6 +205,8 @@ export const benchmarkRunSchema: z.ZodType<BenchmarkRun> = z.object({
   status: jobStatusSchema,
   folds: z.number(),
   random_state: z.number(),
+  cv_strategy: z.enum(["stratified_kfold", "group_kfold"]),
+  group_column: z.string().nullable(),
   excluded_features: z.array(z.string()),
   sample_cap: z.number().nullable(),
   sample_rows: z.number().nullable(),

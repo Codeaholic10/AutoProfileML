@@ -115,6 +115,7 @@ export interface DatasetListItem {
 
 export type TaskType = "classification" | "regression";
 export type ModelFamily = "linear" | "random_forest" | "lightgbm" | "xgboost";
+export type CvStrategy = "stratified_kfold" | "group_kfold";
 
 export interface BenchmarkCreateRequest {
   target: string;
@@ -122,6 +123,8 @@ export interface BenchmarkCreateRequest {
   excluded_features: string[];
   folds: number;
   sample_cap: number | null;
+  cv_strategy: CvStrategy;
+  group_column: string | null;
 }
 
 export type PreprocessingStepKind =
@@ -172,6 +175,8 @@ export interface BenchmarkRun {
   status: JobStatus;
   folds: number;
   random_state: number;
+  cv_strategy: CvStrategy;
+  group_column: string | null;
   excluded_features: string[];
   sample_cap: number | null;
   sample_rows: number | null;

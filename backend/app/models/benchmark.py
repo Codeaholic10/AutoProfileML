@@ -33,6 +33,8 @@ class BenchmarkCreateRequest(BaseModel):
     folds: int = Field(default=5, ge=3, le=10)
     random_state: int = 42
     sample_cap: int | None = Field(default=None, ge=100, le=MAX_BENCHMARK_ROWS)
+    cv_strategy: Literal["stratified_kfold", "group_kfold"] = "stratified_kfold"
+    group_column: str | None = None
 
 
 class PreprocessingStep(BaseModel):
@@ -103,6 +105,9 @@ class BenchmarkRun(BaseModel):
     status: JobStatus = JobStatus.QUEUED
     folds: int = 5
     random_state: int = 42
+    cv_strategy: Literal["stratified_kfold", "group_kfold"] = "stratified_kfold"
+    group_column: str | None = None
+    # Never fed to any model: the user's exclusions plus the group column of a grouped run.
     excluded_features: list[str] = Field(default_factory=list)
     sample_cap: int | None = None
     sample_rows: int | None = None

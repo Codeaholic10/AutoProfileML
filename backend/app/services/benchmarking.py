@@ -26,7 +26,13 @@ from sklearn.base import BaseEstimator, ClassifierMixin, clone
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import make_scorer
-from sklearn.model_selection import KFold, StratifiedKFold, cross_validate
+from sklearn.model_selection import (
+    GroupKFold,
+    KFold,
+    StratifiedGroupKFold,
+    StratifiedKFold,
+    cross_validate,
+)
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.validation import check_is_fitted
@@ -374,6 +380,38 @@ def _select_rows(frame: pl.DataFrame, indices: np.ndarray) -> pl.DataFrame:
     return frame.filter(pl.Series(mask))
 
 
+def build_splits(
+    task: TaskType,
+    labels: np.ndarray,
+    folds: int,
+    random_state: int = RANDOM_SEED,
+    *,
+    groups: np.ndarray | None = None,
+    cv_strategy: str = "stratified_kfold",
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Return train/test indices for the requested cross-validation strategy."""
+
+    indices = np.arange(len(labels))
+    if cv_strategy == "group_kfold":
+        if groups is None:
+            raise ValueError("Grouped cross-validation requires group labels.")
+        if len(groups) != len(labels):
+            raise ValueError("Group labels must align with the rows.")
+        group_splitter: GroupKFold | StratifiedGroupKFold = (
+            StratifiedGroupKFold(n_splits=folds, shuffle=True, random_state=random_state)
+            if task == TaskType.CLASSIFICATION
+            else GroupKFold(n_splits=folds)
+        )
+        return list(group_splitter.split(indices, labels, groups))
+
+    splitter: KFold | StratifiedKFold = (
+        StratifiedKFold(n_splits=folds, shuffle=True, random_state=random_state)
+        if task == TaskType.CLASSIFICATION
+        else KFold(n_splits=folds, shuffle=True, random_state=random_state)
+    )
+    return list(splitter.split(indices, labels))
+
+
 def cross_validate_model(
     pipeline: Pipeline,
     X: pl.DataFrame,
@@ -381,22 +419,28 @@ def cross_validate_model(
     task: TaskType,
     folds: int,
     random_state: int = RANDOM_SEED,
+    *,
+    groups: np.ndarray | None = None,
+    cv_strategy: str = "stratified_kfold",
 ) -> CrossValidationOutcome:
     """Fit the pipeline on each fold, returning metrics and out-of-fold predictions."""
 
     labels = np.asarray(y)
     if task == TaskType.CLASSIFICATION:
-        splitter: KFold | StratifiedKFold = StratifiedKFold(
-            n_splits=folds, shuffle=True, random_state=random_state
-        )
         scorers = _classification_scorers()
         classes = [str(label) for label in np.unique(labels)]
     else:
-        splitter = KFold(n_splits=folds, shuffle=True, random_state=random_state)
         scorers = _regression_scorers()
         classes = []
 
-    splits = list(splitter.split(X, labels))
+    splits = build_splits(
+        task,
+        labels,
+        folds,
+        random_state,
+        groups=groups,
+        cv_strategy=cv_strategy,
+    )
     results = cross_validate(
         pipeline,
         X,
@@ -709,8 +753,31 @@ class BenchmarkService:
         if target_profile is None:
             raise ValueError(f"Target column '{request.target}' does not exist.")
 
+        # The group column is persisted as excluded so every consumer that rebuilds the
+        # feature partition from the run (training, SHAP, export) leaves it out.
+        effective_excluded = list(request.excluded_features)
+        if request.cv_strategy == "group_kfold":
+            if not request.group_column:
+                raise ValueError("Grouped cross-validation requires a group column.")
+            if request.group_column == request.target:
+                raise ValueError("The group column cannot be the target.")
+            group_profile = columns.get(request.group_column)
+            if group_profile is None:
+                raise ValueError(f"Group column '{request.group_column}' does not exist.")
+            if group_profile.unique_count < request.folds:
+                raise ValueError(
+                    f"Group column '{request.group_column}' has "
+                    f"{group_profile.unique_count} distinct groups; "
+                    f"{request.folds}-fold grouped cross-validation needs at least "
+                    f"{request.folds}."
+                )
+            if request.group_column not in effective_excluded:
+                effective_excluded.append(request.group_column)
+        elif request.group_column:
+            raise ValueError("A group column is only valid with grouped cross-validation.")
+
         task, reason = detect_task(target_profile, frame.height, request.task_type)
-        partition_features(frame, request.target, request.excluded_features, profile)
+        partition_features(frame, request.target, effective_excluded, profile)
 
         job = self._jobs.create(kind="benchmark", dataset_id=dataset_id)
         run = BenchmarkRun(
@@ -722,7 +789,9 @@ class BenchmarkService:
             status=JobStatus.QUEUED,
             folds=request.folds,
             random_state=request.random_state,
-            excluded_features=list(request.excluded_features),
+            cv_strategy=request.cv_strategy,
+            group_column=request.group_column,
+            excluded_features=effective_excluded,
             sample_cap=request.sample_cap,
         )
         self._persist_run(run)
@@ -793,6 +862,11 @@ class BenchmarkService:
             )
             X = frame.select(features)
             y = frame[run.target].to_numpy()
+            groups = (
+                frame[run.group_column].to_numpy()
+                if run.cv_strategy == "group_kfold" and run.group_column
+                else None
+            )
 
             total = len(MODEL_SPECS)
             for index, spec in enumerate(MODEL_SPECS, start=1):
@@ -813,6 +887,8 @@ class BenchmarkService:
                         run.task_type,
                         run.folds,
                         random_state=run.random_state,
+                        groups=groups,
+                        cv_strategy=run.cv_strategy,
                     )
                     result = ModelResult(
                         model_id=model_id,

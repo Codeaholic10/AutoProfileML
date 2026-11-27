@@ -249,6 +249,31 @@ def test_export_works_for_a_non_best_model(
     assert manifest.model_name == other.name
 
 
+def test_grouped_run_never_exports_the_group_column(
+    monkeypatch, service, benchmark_service, export_service, job_store
+) -> None:
+    monkeypatch.setattr(benchmarking, "MODEL_SPECS", (benchmarking.MODEL_SPECS[0],))
+    dataset_id = _prepare_dataset(service, build_frame(rows=90), "export-grouped")
+    run, job = benchmark_service.enqueue(
+        dataset_id,
+        BenchmarkCreateRequest(
+            target="income", folds=3, cv_strategy="group_kfold", group_column="city"
+        ),
+    )
+    benchmark_service.run_benchmark(run.benchmark_id, job.job_id)
+
+    model_id = _export_model(export_service, benchmark_service, job_store, run.benchmark_id)
+
+    download = export_service.get_download(run.benchmark_id, model_id)
+    with zipfile.ZipFile(download.path) as bundle:
+        source = bundle.read(EXPORT_SCRIPT_NAME).decode("utf-8")
+    feature_lines = [line for line in source.splitlines() if "_FEATURES = " in line]
+    assert feature_lines
+    assert all("'city'" not in line for line in feature_lines), feature_lines
+    stored = benchmark_service.get_benchmark(run.benchmark_id)
+    assert "city" in stored.excluded_features
+
+
 def test_export_rejects_unknown_and_unready_models(
     export_service: ExportService,
     benchmark_service: BenchmarkService,

@@ -168,6 +168,8 @@ export const benchmarkRun: BenchmarkRun = {
   status: "succeeded",
   folds: 5,
   random_state: 42,
+  cv_strategy: "stratified_kfold",
+  group_column: null,
   excluded_features: [],
   sample_cap: null,
   sample_rows: null,

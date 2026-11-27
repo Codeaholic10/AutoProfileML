@@ -20,17 +20,38 @@ import type {
 
 import { suggestExclusions } from "../recommendations";
 
-const formSchema = z.object({
-  target: z.string().min(1, "Choose a target column."),
-  taskType: z.enum(["auto", "classification", "regression"]),
-  folds: z
-    .number()
-    .int("Folds must be a whole number.")
-    .min(3, "Use at least 3 folds.")
-    .max(10, "Use at most 10 folds."),
-  sampleCap: z.enum(["all", "10000", "50000", "100000"]),
-  excluded: z.array(z.string()),
-});
+const formSchema = z
+  .object({
+    target: z.string().min(1, "Choose a target column."),
+    taskType: z.enum(["auto", "classification", "regression"]),
+    cvStrategy: z.enum(["stratified_kfold", "group_kfold"]),
+    groupColumn: z.string(),
+    folds: z
+      .number()
+      .int("Folds must be a whole number.")
+      .min(3, "Use at least 3 folds.")
+      .max(10, "Use at most 10 folds."),
+    sampleCap: z.enum(["all", "10000", "50000", "100000"]),
+    excluded: z.array(z.string()),
+  })
+  .superRefine((values, context) => {
+    if (values.cvStrategy !== "group_kfold") {
+      return;
+    }
+    if (values.groupColumn === "") {
+      context.addIssue({
+        code: "custom",
+        path: ["groupColumn"],
+        message: "Choose a group column.",
+      });
+    } else if (values.groupColumn === values.target) {
+      context.addIssue({
+        code: "custom",
+        path: ["groupColumn"],
+        message: "The group column cannot be the target.",
+      });
+    }
+  });
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -72,6 +93,8 @@ export function BenchmarkForm({
     defaultValues: {
       target: "",
       taskType: "auto",
+      cvStrategy: "stratified_kfold",
+      groupColumn: "",
       folds: 5,
       sampleCap: "all",
       excluded: [],
@@ -79,6 +102,7 @@ export function BenchmarkForm({
   });
 
   const target = useWatch({ control, name: "target" });
+  const cvStrategy = useWatch({ control, name: "cvStrategy" });
   const selected = useWatch({ control, name: "excluded" });
   const excluded = selected ?? [];
   const pending = mutation.isPending;
@@ -107,6 +131,9 @@ export function BenchmarkForm({
       excluded_features: values.excluded.filter((name) => name !== values.target),
       folds: values.folds,
       sample_cap: values.sampleCap === "all" ? null : Number(values.sampleCap),
+      cv_strategy: values.cvStrategy,
+      group_column:
+        values.cvStrategy === "group_kfold" ? values.groupColumn : null,
     };
     mutation.mutate(
       { datasetId, request },
@@ -221,6 +248,54 @@ export function BenchmarkForm({
             <option value="100000">100,000</option>
           </select>
         </div>
+
+        <div className="space-y-1">
+          <label
+            htmlFor="benchmark-cv-strategy"
+            className="text-xs text-muted-foreground"
+          >
+            Cross-validation
+          </label>
+          <select
+            id="benchmark-cv-strategy"
+            className={selectClassName}
+            {...register("cvStrategy")}
+          >
+            <option value="stratified_kfold">Stratified k-fold</option>
+            <option value="group_kfold">Grouped k-fold</option>
+          </select>
+        </div>
+
+        {cvStrategy === "group_kfold" ? (
+          <div className="space-y-1">
+            <label
+              htmlFor="benchmark-group-column"
+              className="text-xs text-muted-foreground"
+            >
+              Group column
+            </label>
+            <select
+              id="benchmark-group-column"
+              className={selectClassName}
+              aria-invalid={errors.groupColumn !== undefined}
+              {...register("groupColumn")}
+            >
+              <option value="">Choose a column…</option>
+              {columns
+                .filter((column) => column.name !== target)
+                .map((column) => (
+                  <option key={column.name} value={column.name}>
+                    {column.name} ({column.semantic_type})
+                  </option>
+                ))}
+            </select>
+            {errors.groupColumn ? (
+              <p role="alert" className="text-xs text-destructive">
+                {errors.groupColumn.message}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <fieldset className="space-y-2">
@@ -280,7 +355,8 @@ export function BenchmarkForm({
           {pending ? "Queueing…" : "Run benchmark"}
         </Button>
         <p className="text-xs text-muted-foreground">
-          Excluded features are never fed to any model. Task type is inferred from
+          Excluded features are never fed to any model. Grouped cross-validation
+          keeps every row of a group in a single fold. Task type is inferred from
           the target when set to auto.
         </p>
       </div>

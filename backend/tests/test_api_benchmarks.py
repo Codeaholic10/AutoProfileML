@@ -123,6 +123,45 @@ def test_regression_benchmark_rejects_prediction_requests(client: TestClient) ->
     assert predictions.status_code == 400
 
 
+def test_grouped_benchmark_validates_group_column(client: TestClient) -> None:
+    dataset_id = _upload(client, build_frame(rows=80))
+
+    missing = client.post(
+        f"/api/datasets/{dataset_id}/benchmarks",
+        json={"target": "score", "folds": 3, "cv_strategy": "group_kfold"},
+    )
+    assert missing.status_code == 400
+
+    unknown = client.post(
+        f"/api/datasets/{dataset_id}/benchmarks",
+        json={
+            "target": "score",
+            "folds": 3,
+            "cv_strategy": "group_kfold",
+            "group_column": "no-such-column",
+        },
+    )
+    assert unknown.status_code == 400
+
+    too_few_groups = client.post(
+        f"/api/datasets/{dataset_id}/benchmarks",
+        json={
+            "target": "score",
+            "folds": 5,
+            "cv_strategy": "group_kfold",
+            "group_column": "city",
+        },
+    )
+    assert too_few_groups.status_code == 400
+    assert "4 distinct groups" in too_few_groups.json()["detail"]
+
+    stray = client.post(
+        f"/api/datasets/{dataset_id}/benchmarks",
+        json={"target": "score", "folds": 3, "group_column": "city"},
+    )
+    assert stray.status_code == 400
+
+
 def test_benchmark_rejects_unknown_dataset(client: TestClient) -> None:
     response = client.post(
         "/api/datasets/missing/benchmarks",

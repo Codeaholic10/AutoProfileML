@@ -178,6 +178,8 @@ class BenchmarkCreateRequest(BaseModel):
     excluded_features: list[str] = Field(default_factory=list)
     folds: int = Field(default=5, ge=3, le=10)
     random_state: int = 42
+    cv_strategy: Literal["stratified_kfold", "group_kfold"] = "stratified_kfold"
+    group_column: str | None = None          # required for group_kfold; never a feature
 
 class FeaturePartition(BaseModel):
     target: str
@@ -228,7 +230,9 @@ class BenchmarkRun(BaseModel):
     status: JobStatus
     folds: int
     random_state: int
-    excluded_features: list[str]            # user-declared features never fed to the pipeline
+    cv_strategy: Literal["stratified_kfold", "group_kfold"]
+    group_column: str | None
+    excluded_features: list[str]            # never fed to the pipeline: user-declared + group column
     sample_cap: int | None                  # user-requested row cap, null = default 250k
     sample_rows: int | None                 # rows actually used after sampling; null when unsampled
     class_support: dict[str, int]           # classification only; CV row count per class
@@ -464,7 +468,7 @@ it.
 | POST | `/api/datasets/{dataset_id}/profile` | ✅ | Re-profile, `202` + job |
 | GET | `/api/datasets/{dataset_id}/jobs` | ✅ | Job history for a dataset |
 | GET | `/api/jobs/{job_id}` | ✅ | Poll any job |
-| POST | `/api/datasets/{dataset_id}/benchmarks` | ✅ | Queue benchmark (target, task, folds), `202`; `404` unknown dataset, `400` invalid target/folds |
+| POST | `/api/datasets/{dataset_id}/benchmarks` | ✅ | Queue benchmark (target, task, folds, CV strategy), `202`; `404` unknown dataset, `400` invalid target/folds/group column |
 | GET | `/api/datasets/{dataset_id}/benchmarks` | ✅ | Benchmark history (`BenchmarkSummary[]`); `404` unknown dataset |
 | GET | `/api/benchmarks/{benchmark_id}` | ✅ | Full run + leaderboard; `404` unknown benchmark |
 | GET | `/api/benchmarks/{benchmark_id}/models/{model_id}/predictions` | ✅ | Out-of-fold predictions for confusion matrices, ROC curves, and mistakes; `404` unknown, `409` while queued/running, `400` for regression |
@@ -485,7 +489,7 @@ Errors always use FastAPI's envelope: `{"detail": "<human-readable message>"}`.
 | `200` | Read succeeded |
 | `202` | Work accepted and queued (upload, profile, benchmark, explanation) |
 | `204` | Deletion succeeded |
-| `400` | Semantically invalid request (empty upload, unknown target, invalid folds) |
+| `400` | Semantically invalid request (empty upload, unknown target, invalid folds, invalid group column) |
 | `404` | Dataset, job, benchmark, or explanation not found |
 | `409` | Resource exists but is not ready yet (profile, benchmark predictions, or explanation pending) |
 | `413` | Upload exceeds the configured size limit |
@@ -621,7 +625,9 @@ ColumnTransformer
 ### 5.3 Benchmark arena
 
 - CV: `StratifiedKFold(n_splits=folds, shuffle=True, random_state=42)` for classification,
-  `KFold(...)` for regression. Scoring uses
+  `KFold(...)` for regression. A run may instead request `cv_strategy="group_kfold"` with a
+  `group_column`; classification then uses `StratifiedGroupKFold` and regression uses
+  `GroupKFold`, and the group column is excluded from the features. Scoring uses
   `cross_validate(..., return_estimator=True)` so each fold's test rows can be scored
   out-of-fold; the test split is recorded explicitly and reused for that extraction.
 - Model registry (each entry: name, family, estimator factory, supported tasks):

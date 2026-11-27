@@ -24,6 +24,7 @@ from app.services.benchmarking import (
     ModelNotFoundError,
     ModelSpec,
     accuracy,
+    build_splits,
     cross_validate_model,
     log_loss,
     macro_f1,
@@ -72,6 +73,36 @@ def test_regression_metrics_on_known_arrays() -> None:
     assert rmse(y_true, y_pred) == pytest.approx(np.sqrt(1 / 3))
     assert mae(y_true, y_pred) == pytest.approx(1 / 3)
     assert r2(y_true, y_pred) == pytest.approx(0.5)
+
+
+def test_grouped_splits_keep_groups_disjoint() -> None:
+    labels = np.array([0, 1] * 30)
+    groups = np.repeat(np.arange(10), 6)
+
+    splits = build_splits(
+        TaskType.CLASSIFICATION,
+        labels,
+        5,
+        42,
+        groups=groups,
+        cv_strategy="group_kfold",
+    )
+
+    assert len(splits) == 5
+    covered = np.concatenate([test for _, test in splits])
+    assert sorted(covered.tolist()) == list(range(len(labels)))
+    for train, test in splits:
+        assert set(groups[train]).isdisjoint(set(groups[test]))
+
+
+def test_grouped_splits_require_groups() -> None:
+    with pytest.raises(ValueError, match="group labels"):
+        build_splits(
+            TaskType.CLASSIFICATION,
+            np.array([0, 1] * 10),
+            5,
+            cv_strategy="group_kfold",
+        )
 
 
 def test_sample_training_frame_is_deterministic_and_reports_the_cap() -> None:

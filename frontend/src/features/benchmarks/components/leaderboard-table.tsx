@@ -89,6 +89,7 @@ export function LeaderboardTable({ run }: { run: BenchmarkRun }) {
   function header(key: string, label: string, numeric = true) {
     return (
       <TableHead
+        key={key}
         aria-sort={
           key === sortKey ? (direction === "asc" ? "ascending" : "descending") : "none"
         }
